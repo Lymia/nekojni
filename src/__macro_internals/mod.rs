@@ -1,6 +1,10 @@
-pub mod object_id;
-pub mod panicking;
+mod object_id;
+
+pub use crate::panicking::catch_panic_jni;
+pub use object_id::IdManager;
 
 pub struct ClassInfo {
-    exception_class: &'static str,
+    pub exception_class: &'static str,
 }
+
+pub use std;

@@ -89,7 +89,10 @@ macro_rules! simple_conversion {
         }
     )*}
 }
-simple_conversion!((f32, jfloat, "float", 0.0)(f64, jdouble, "double", 0.0));
+simple_conversion! {
+    (f32, jfloat, "float", 0.0)
+    (f64, jdouble, "double", 0.0)
+}
 
 macro_rules! numeric_conversion {
     ($(($rust_ty:ty, $jni_ty:ty, $java_ty:literal))*) => {$(
@@ -116,8 +119,13 @@ macro_rules! numeric_conversion {
         }
     )*}
 }
-numeric_conversion!(
-    (i8, jbyte, "byte")(u8, jbyte, "byte")(i16, jshort, "short")(u16, jshort, "short")(
-        i32, jint, "int"
-    )(u32, jint, "int")(i64, jlong, "long")(u64, jlong, "long")
-);
+numeric_conversion! {
+    (i8, jbyte, "byte")
+    (u8, jbyte, "byte")
+    (i16, jshort, "short")
+    (u16, jshort, "short")
+    (i32, jint, "int")
+    (u32, jint, "int")
+    (i64, jlong, "long")
+    (u64, jlong, "long")
+}

@@ -1,3 +1,4 @@
+#[allow(deprecated)]
 use crate::{__macro_internals::ClassInfo, errors::*, JavaConversion};
 use jni::JNIEnv;
 use std::{any::Any, panic::AssertUnwindSafe};
@@ -59,25 +60,42 @@ fn check_fail(r: Result<()>) {
         std::process::abort(); // rip
     }
 }
+
+pub fn catch_panic<R>(func: impl FnOnce() -> R) -> Result<R> {
+    match std::panic::catch_unwind(AssertUnwindSafe(func)) {
+        Ok(v) => Ok(v),
+        Err(e) => Err(Error::panicked(get_panic_string(e))),
+    }
+}
+
+/// The function that handles the return value of object methods, and prevents panics from crossing
+/// the FFI barrier.
+#[allow(deprecated)]
 pub fn catch_panic_jni<T: JavaConversion, R: MethodReturn<T>>(
     env: &JNIEnv,
     func: impl FnOnce() -> R,
     class_info: &ClassInfo,
 ) -> T::JavaType {
+    // for safety, just in case there's a bug that might cause panics in e.g. backtrace, since
+    // we invoke a lot of weird stuff trying to get the panic string.
     match std::panic::catch_unwind(AssertUnwindSafe(|| {
-        let result = func();
-        if result.is_error() {
-            check_fail(env.emit_error(env, class_info.exception_class));
-            T::null()
-        } else {
-            result.into_inner().into_java(env)
+        match catch_panic(|| {
+            let result = func();
+            if result.is_error() {
+                check_fail(env.emit_error(env, class_info.exception_class));
+                T::null()
+            } else {
+                result.into_inner().into_java(env)
+            }
+        }) {
+            Ok(v) => v,
+            Err(e) => {
+                check_fail(e.emit_error(env, class_info.exception_class));
+                T::null()
+            }
         }
     })) {
         Ok(v) => v,
-        Err(e) => {
-            let err_obj = Error::panicked(get_panic_string(e));
-            check_fail(err_obj.emit_error(env, class_info.exception_class));
-            T::null()
-        }
+        Err(_) => std::process::abort(),
     }
 }

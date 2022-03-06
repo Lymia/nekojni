@@ -47,7 +47,7 @@ impl<T: Send + Sync> IdManagerData<T> {
             let new_id = self.head;
             let new_head = match &self.nodes[new_id] {
                 FreeListNode::Data(_) => panic!(
-                    "freelist for '{}': __macro_internals error - attempting to allocate over value",
+                    "freelist for '{}': internal error - attempting to allocate over value",
                     type_name::<T>(),
                 ),
                 FreeListNode::Free(head) => *head,

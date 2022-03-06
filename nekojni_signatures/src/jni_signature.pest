@@ -1,0 +1,22 @@
+ident = @{ ident_char+ }
+ident_char = @{ ' '..'-' | '0'..':' | "=" | '?'..'Z' | '\\'..'~' }
+
+ty = { ty_array_head* ~ (ty_prim | ty_class) }
+ty_prim = { "Z" | "B" | "C" | "S" | "I" | "J" | "F" | "D" }
+ty_class = { "L" ~ class ~ ";" }
+ty_array_head = { "[" }
+
+class = { class_component ~ ( "/" ~ class_component )* }
+class_component = { ident | "<init>" | "<clinit>" }
+
+sig = { "(" ~ ty* ~ ")" ~ sig_ret }
+sig_ret = { "V" | ty }
+
+method = { path ~ "." ~ ident ~ sig }
+
+path = { ident ~ ("/" ~ ident)* }
+
+full_sig = { SOI ~ sig ~ EOI }
+full_method = { SOI ~ method ~ EOI }
+full_path = { SOI ~ path ~ EOI }
+

@@ -19,6 +19,7 @@ struct ErrorData {
     location: &'static Location<'static>,
     data: ErrorType,
     backtrace: Option<Backtrace>,
+    override_except_class: Option<Cow<'static, str>>,
 }
 
 #[derive(Error, Debug)]
@@ -61,6 +62,7 @@ impl Error {
             location: Location::caller(),
             data: tp,
             backtrace,
+            override_except_class: None,
         }))
     }
 
@@ -84,7 +86,7 @@ impl Error {
     /// Creates a new `Error` from a Rust panic.
     #[inline(never)]
     #[track_caller]
-    pub fn panicked(msg: impl Into<Cow<'static, str>>) -> Self {
+    pub(crate) fn panicked(msg: impl Into<Cow<'static, str>>) -> Self {
         Self::raw_new(ErrorType::Panicking(msg.into()), false)
     }
 
@@ -95,10 +97,28 @@ impl Error {
         Self::raw_new(ErrorType::Wrapped(Box::new(err)), true)
     }
 
+    /// Catches a panic and converts it to an `Error`.
+    pub fn catch_panic<R>(func: impl FnOnce() -> R) -> Result<R> {
+        crate::panicking::catch_panic(func)
+    }
+
     /// Emits an error into an [`JNIEnv`]
     pub fn emit_error(&self, env: &JNIEnv, exception_class: &str) -> Result<()> {
-        env.throw_new(exception_class, self.to_string())?;
+        let class = match &self.0.override_except_class {
+            Some(x) => x,
+            None => exception_class,
+        };
+        env.throw_new(class, self.to_string())?;
         Ok(())
+    }
+
+    /// Sets the class used when emitting this error as an exception to JNI.
+    ///
+    /// The class is given as an JNI internal name.
+    #[inline(never)]
+    pub fn set_exception_class(mut self, class: impl Into<Cow<'static, str>>) -> Self {
+        self.0.override_except_class = Some(class.into());
+        self
     }
 }
 
@@ -147,3 +167,52 @@ error_from!(jni::errors::Error, jni::errors::JniError,);
 
 /// The result type used for `nekojni`.
 pub type Result<T> = StdResult<T, Error>;
+
+/// Returns from the current function with an internal [`Error`].
+///
+/// This requires the function return a [`Result`], and uses the same format as [`format!`].
+#[macro_export]
+macro_rules! jni_bail {
+    ($($tt:tt)*) => {
+        #[allow(deprecated)]
+        return $crate::__macro_internals::std::result::Result::Err(
+            $crate::Error::new($crate::__macro_internals::std::format!($($tt)*))
+        )
+    }
+}
+
+/// Returns from the current function with an internal [`Error`], if a precondition fails.
+///
+/// This requires the function return a [`Result`], and uses the same format as [`assert!`].
+#[macro_export]
+macro_rules! jni_assert {
+    ($condition:expr, $($tt:tt)*) => {
+        if !$condition {
+            jni_bail!($($tt)*)
+        }
+    }
+}
+
+/// Returns from the current function with an [`Error`]. Use this function for exceptions that
+/// are meant to be thrown directly to Java code.
+///
+/// This requires the function return a [`Result`], and uses the same format as [`format!`].
+///
+/// Optionally, you may add an initial argument starting with @ to set the exception class. For
+/// example:
+///
+/// ```rust
+/// # use nekojni::*;
+/// # fn test() -> Result<u32> {
+/// jni_throw!(@"com/example/SomeExceptionClass", "This function encountered an error!")
+/// # }
+/// ```
+#[macro_export]
+macro_rules! jni_throw {
+    ($(@ $exception_class:literal $(,)?)? $($tt:tt)*) => {
+        #[allow(deprecated)]
+        return $crate::__macro_internals::std::result::Result::Err(
+            $crate::Error::new($crate::__macro_internals::std::format!($($tt)*))
+        ) $( .set_exception_class($exception_class) )?
+    }
+}
