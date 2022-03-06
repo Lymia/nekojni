@@ -52,3 +52,11 @@ fn test_parse_types_java() {
         assert_eq!(ty, &Type::parse_java(java_ty).unwrap());
     }
 }
+
+#[test]
+fn test_parse_types_jni() {
+    for (ty, _, jni_ty) in TEST_TYPES {
+        assert_eq!(ty, &Type::parse_jni(jni_ty).unwrap());
+    }
+}
+

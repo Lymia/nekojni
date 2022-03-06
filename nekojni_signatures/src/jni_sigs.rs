@@ -1,5 +1,6 @@
 use crate::*;
-use pest_derive::*;
+use pest::error::*;
+use pest_consume::{match_nodes, Parser};
 use std::{
     fmt::{Display, Formatter, Write},
     ops::Deref,
@@ -7,7 +8,123 @@ use std::{
 
 #[derive(Parser)]
 #[grammar = "jni_signature.pest"]
-struct JavaParser;
+struct JniParser;
+type Result<T> = std::result::Result<T, Error<Rule>>;
+type Node<'i> = pest_consume::Node<'i, Rule, ()>;
+
+#[pest_consume::parser]
+impl JniParser {
+    fn ident(input: Node) -> Result<&str> {
+        Ok(input.as_str())
+    }
+
+    fn path(input: Node) -> Result<ClassName> {
+        Ok(match_nodes!(input.children();
+            [ident(names)..] => {
+                let mut vec: Vec<_> = names.collect();
+                let name = match vec.pop() {
+                    Some(x) => x,
+                    None => return Err(input.error("ClassName has no components??")),
+                };
+                ClassName::new_owned(&vec, name)
+            },
+        ))
+    }
+
+    fn ty(input: Node) -> Result<Type> {
+        Ok(match_nodes!(input.children();
+            [ty_array_head(braces).., ty_prim(prim)] => {
+                let ty = match prim {
+                    "B" => Type::Byte,
+                    "S" => Type::Short,
+                    "I" => Type::Int,
+                    "J" => Type::Long,
+                    "F" => Type::Float,
+                    "D" => Type::Double,
+                    "Z" => Type::Boolean,
+                    "C" => Type::Char,
+                    _ => unreachable!(),
+                };
+                ty.array_dim(braces.count())
+            },
+            [ty_array_head(braces).., ty_class(class)] =>
+                Type::new(BasicType::Class(class)).array_dim(braces.count()),
+        ))
+    }
+    fn ty_prim(input: Node) -> Result<&str> {
+        Ok(input.as_str())
+    }
+    fn ty_class(input: Node) -> Result<ClassName> {
+        Ok(match_nodes!(input.children();
+            [path(path)] => path,
+        ))
+    }
+    fn ty_array_head(_input: Node) -> Result<()> {
+        Ok(())
+    }
+
+    fn sig(input: Node) -> Result<MethodSig> {
+        Ok(match_nodes!(input.children();
+            [ty(params)..] => {
+                let params: Vec<_> = params.collect();
+                MethodSig::void_owned(&params)
+            },
+            [ty(params).., sig_ret(ret_ty)] => {
+                let params: Vec<_> = params.collect();
+                MethodSig::new_owned(ret_ty, &params)
+            },
+        ))
+    }
+    fn sig_ret(input: Node) -> Result<Type> {
+        Ok(match_nodes!(input.children();
+            [ty(ty)] => ty,
+        ))
+    }
+
+    fn full_ty(input: Node) -> Result<Type> {
+        Ok(match_nodes!(input.children();
+            [ty(ty), EOI(_)] => ty,
+        ))
+    }
+    fn full_sig(input: Node) -> Result<MethodSig> {
+        Ok(match_nodes!(input.children();
+            [sig(sig), EOI(_)] => sig,
+        ))
+    }
+    fn full_path(input: Node) -> Result<ClassName> {
+        Ok(match_nodes!(input.children();
+            [path(path), EOI(_)] => path,
+        ))
+    }
+    fn EOI(_input: Node) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl<'a> MethodSig<'a> {
+    /// Parses a method signature from a JNI format.
+    pub fn parse_jni(source: &'a str) -> Result<Self> {
+        let inputs = JniParser::parse(Rule::full_sig, source)?;
+        let input = inputs.single()?;
+        JniParser::full_sig(input)
+    }
+}
+impl<'a> Type<'a> {
+    /// Parses a type from a JNI format
+    pub fn parse_jni(source: &'a str) -> Result<Self> {
+        let inputs = JniParser::parse(Rule::full_ty, source)?;
+        let input = inputs.single()?;
+        JniParser::full_ty(input)
+    }
+}
+impl<'a> ClassName<'a> {
+    /// Parses a class name from a JNI format
+    pub fn parse_jni(source: &'a str) -> Result<Self> {
+        let inputs = JniParser::parse(Rule::full_path, source)?;
+        let input = inputs.single()?;
+        JniParser::full_path(input)
+    }
+}
 
 struct DisplayMethodSignatureJni<'a>(&'a MethodSig<'a>);
 impl<'a> Display for DisplayMethodSignatureJni<'a> {

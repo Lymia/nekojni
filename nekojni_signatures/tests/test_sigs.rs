@@ -52,3 +52,10 @@ fn test_parse_sigs_java() {
         assert_eq!(sig, &MethodSig::parse_java(java_sig).unwrap());
     }
 }
+
+#[test]
+fn test_parse_sigs_jni() {
+    for (sig, _, jni_sig) in TEST_SIGS {
+        assert_eq!(sig, &MethodSig::parse_jni(jni_sig).unwrap());
+    }
+}

@@ -51,13 +51,7 @@ impl JavaParser {
                 };
                 base.array_dim(braces.count())
             },
-            [path(name), ty_generics(_), ty_array_braces(braces)..] => {
-                Type::new(BasicType::Class(name)).array_dim(braces.count())
-            },
         ))
-    }
-    fn ty_generics(_input: Node) -> Result<()> {
-        Ok(())
     }
     fn ty_array_braces(_input: Node) -> Result<()> {
         Ok(())
@@ -100,6 +94,9 @@ impl JavaParser {
 }
 
 impl<'a> MethodSig<'a> {
+    /// Parses a method signature from a Java-like format.
+    ///
+    /// TODO: Document format
     pub fn parse_java(source: &'a str) -> Result<Self> {
         let inputs = JavaParser::parse(Rule::full_sig, source)?;
         let input = inputs.single()?;
@@ -107,6 +104,9 @@ impl<'a> MethodSig<'a> {
     }
 }
 impl<'a> Type<'a> {
+    /// Parses a type from a Java-like format.
+    ///
+    /// TODO: Document format
     pub fn parse_java(source: &'a str) -> Result<Self> {
         let inputs = JavaParser::parse(Rule::full_ty, source)?;
         let input = inputs.single()?;
@@ -114,6 +114,9 @@ impl<'a> Type<'a> {
     }
 }
 impl<'a> ClassName<'a> {
+    /// Parses a class name from a Java-like format.
+    ///
+    /// TODO: Document format
     pub fn parse_java(source: &'a str) -> Result<Self> {
         let inputs = JavaParser::parse(Rule::full_path, source)?;
         let input = inputs.single()?;
