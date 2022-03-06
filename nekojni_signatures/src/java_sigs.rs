@@ -28,7 +28,7 @@ impl<'a> Method<'a> {
     }
 }
 
-fn display_params(sig: &MethodSignature<'_>, f: &mut Formatter<'_>) -> std::fmt::Result {
+fn display_params<'a>(sig: &'a MethodSignature<'a>, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.write_char('(')?;
     let mut is_first = true;
     for param in sig.params.deref() {
@@ -133,7 +133,7 @@ impl<'a> BasicType<'a> {
 struct DisplayClassNameJava<'a>(&'a ClassName<'a>);
 impl<'a> Display for DisplayClassNameJava<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        for pkg in &self.0.package {
+        for pkg in self.0.package.deref() {
             f.write_str(pkg)?;
             f.write_char('.')?;
         }

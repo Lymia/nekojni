@@ -209,10 +209,24 @@ macro_rules! jni_assert {
 /// ```
 #[macro_export]
 macro_rules! jni_throw {
-    ($(@ $exception_class:literal $(,)?)? $($tt:tt)*) => {
+    (@ $exception_class:literal) => {
+        #[allow(deprecated)]
+        return $crate::__macro_internals::std::result::Result::Err(
+            $crate::Error::new($crate::__macro_internals::std::format!(""))
+                .set_exception_class($exception_class)
+        )
+    };
+    (@ $exception_class:literal, $($tt:tt)*) => {
         #[allow(deprecated)]
         return $crate::__macro_internals::std::result::Result::Err(
             $crate::Error::new($crate::__macro_internals::std::format!($($tt)*))
-        ) $( .set_exception_class($exception_class) )?
-    }
+                .set_exception_class($exception_class)
+        )
+    };
+    ($($tt:tt)*) => {
+        #[allow(deprecated)]
+        return $crate::__macro_internals::std::result::Result::Err(
+            $crate::Error::new($crate::__macro_internals::std::format!($($tt)*))
+        )
+    };
 }

@@ -1,9 +1,10 @@
 use jni::{sys::*, JNIEnv};
+use nekojni_signatures::*;
 
 /// Main trait that converts between Java and Rust types.
 pub trait JavaConversion {
-    /// The fully qualified name of the Java type.
-    const JAVA_NAME: &'static str;
+    /// The Java type used for this Rust object.
+    const JAVA_TYPE: Type<'static>;
 
     /// The type used for the exported function signature.
     type JavaType;
@@ -20,7 +21,7 @@ pub trait JavaConversion {
 }
 
 impl JavaConversion for bool {
-    const JAVA_NAME: &'static str = "boolean";
+    const JAVA_TYPE: Type<'static> = Type::Boolean;
     type JavaType = jboolean;
     fn into_java(self, _env: &JNIEnv) -> Self::JavaType {
         self as u8
@@ -33,7 +34,7 @@ impl JavaConversion for bool {
     }
 }
 impl JavaConversion for String {
-    const JAVA_NAME: &'static str = "String";
+    const JAVA_TYPE: Type<'static> = Type::class(&["java", "lang"], "String");
     type JavaType = jstring;
     fn into_java(self, env: &JNIEnv) -> Self::JavaType {
         env.new_string(self)
@@ -50,7 +51,7 @@ impl JavaConversion for String {
     }
 }
 impl JavaConversion for Vec<u8> {
-    const JAVA_NAME: &'static str = "byte[]";
+    const JAVA_TYPE: Type<'static> = Type::Boolean.array();
     type JavaType = jbyteArray;
     fn into_java(self, env: &JNIEnv) -> Self::JavaType {
         assert!(self.len() < jint::MAX as usize);
@@ -73,9 +74,9 @@ impl JavaConversion for Vec<u8> {
 }
 
 macro_rules! simple_conversion {
-    ($(($rust_ty:ty, $jni_ty:ty, $java_ty:literal, $default:expr))*) => {$(
+    ($(($rust_ty:ty, $jni_ty:ty, $java_ty:expr, $default:expr))*) => {$(
         impl JavaConversion for $rust_ty {
-            const JAVA_NAME: &'static str = $java_ty;
+            const JAVA_TYPE: Type<'static> = $java_ty;
             type JavaType = $jni_ty;
             fn into_java(self, _env: &JNIEnv) -> Self::JavaType {
                 self
@@ -90,19 +91,19 @@ macro_rules! simple_conversion {
     )*}
 }
 simple_conversion! {
-    (f32, jfloat, "float", 0.0)
-    (f64, jdouble, "double", 0.0)
+    (f32, jfloat, Type::Float, 0.0)
+    (f64, jdouble, Type::Double, 0.0)
 }
 
 macro_rules! numeric_conversion {
-    ($(($rust_ty:ty, $jni_ty:ty, $java_ty:literal))*) => {$(
+    ($(($rust_ty:ty, $jni_ty:ty, $java_ty:expr))*) => {$(
         impl JavaConversion for $rust_ty {
-            const JAVA_NAME: &'static str = $java_ty;
+            const JAVA_TYPE: Type<'static> = $java_ty;
             type JavaType = $jni_ty;
             fn into_java(self, _env: &JNIEnv) -> Self::JavaType {
                 assert!(
                     <$rust_ty>::MAX != 0 || self <= <$jni_ty>::MAX as $rust_ty,
-                    concat!(stringify!($rust_ty), " too large to convert to ", $java_ty)
+                    concat!(stringify!($rust_ty), " too large to convert to ", stringify!($jni_ty))
                 );
                 self as $jni_ty
             }
@@ -120,12 +121,12 @@ macro_rules! numeric_conversion {
     )*}
 }
 numeric_conversion! {
-    (i8, jbyte, "byte")
-    (u8, jbyte, "byte")
-    (i16, jshort, "short")
-    (u16, jshort, "short")
-    (i32, jint, "int")
-    (u32, jint, "int")
-    (i64, jlong, "long")
-    (u64, jlong, "long")
+    (i8, jbyte, Type::Byte)
+    (u8, jbyte, Type::Byte)
+    (i16, jshort, Type::Short)
+    (u16, jshort, Type::Short)
+    (i32, jint, Type::Int)
+    (u32, jint, Type::Int)
+    (i64, jlong, Type::Long)
+    (u64, jlong, Type::Long)
 }

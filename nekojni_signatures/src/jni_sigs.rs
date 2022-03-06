@@ -118,7 +118,7 @@ struct DisplayClassNameJni<'a>(&'a ClassName<'a>);
 impl<'a> Display for DisplayClassNameJni<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_char('L')?;
-        for pkg in &self.0.package {
+        for pkg in self.0.package.deref() {
             f.write_str(pkg)?;
             f.write_char('/')?;
         }
