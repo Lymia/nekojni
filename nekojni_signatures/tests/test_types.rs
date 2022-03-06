@@ -45,3 +45,10 @@ fn test_display_types_jni() {
         assert_eq!(&ty.display_jni().to_string(), jni_ty);
     }
 }
+
+#[test]
+fn test_parse_types_java() {
+    for (ty, java_ty, _) in TEST_TYPES {
+        assert_eq!(ty, &Type::parse_java(java_ty).unwrap());
+    }
+}

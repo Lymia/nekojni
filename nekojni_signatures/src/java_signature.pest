@@ -4,11 +4,12 @@ ident = @{ ident_start ~ ident_char* }
 ident_start = @{ 'a'..'z' | 'A'..'Z' | "$" | "_" }
 ident_char = @{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "$" | "_" }
 
-ty = { ident ~ ty_generics? ~ ty_array_braces* }
+ty = { path ~ ty_generics? ~ ty_array_braces* }
 ty_array_braces = { "[" ~ "]" }
 ty_generics = { "<" ~ ty ~ ("," ~ ty)* ~ ">" }
 
-sig = { ty ~ ident ~ "(" ~ sig_param_list ~ ")" }
+sig = { (sig_void | ty) ~ ident ~ "(" ~ sig_param_list? ~ ")" }
+sig_void = { "void" }
 sig_param = { ty ~ ident }
 sig_param_list = { sig_param ~ ("," ~ sig_param)* }
 
@@ -17,5 +18,4 @@ method = { ty ~ path ~ "(" ~ sig_param_list ~ ")" }
 path = { ident ~ ("." ~ ident)* }
 
 full_sig = { SOI ~ sig ~ EOI }
-full_method = { SOI ~ method ~ EOI }
-full_path = { SOI ~ path ~ EOI }
+full_ty = { SOI ~ ty ~ EOI }

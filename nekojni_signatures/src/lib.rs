@@ -27,7 +27,7 @@ impl<'a> MethodSig<'a> {
     }
 
     /// Creates a new method signature with an owned parameter list.
-    pub fn new_owned(ret_ty: Type<'a>, params: &'a [MethodParam<'a>]) -> Self {
+    pub fn new_owned(ret_ty: Type<'a>, params: &[MethodParam<'a>]) -> Self {
         MethodSig {
             ret_ty: ReturnType::Ty(ret_ty),
             params: Cow::Owned(params.to_owned()),
@@ -43,7 +43,7 @@ impl<'a> MethodSig<'a> {
     }
 
     /// Creates a new method signature that returns void with an owned parameter list.
-    pub fn void_owned(params: &'a [MethodParam<'a>]) -> Self {
+    pub fn void_owned(params: &[MethodParam<'a>]) -> Self {
         MethodSig {
             ret_ty: ReturnType::Void,
             params: Cow::Owned(params.to_owned()),

@@ -31,15 +31,22 @@ const TEST_SIGS: &[(MethodSig<'static>, &'static str, &'static str)] = &[(
     )];
 
 #[test]
-fn test_display_types_java() {
+fn test_display_sigs_java() {
     for (sig, java_sig, _) in TEST_SIGS {
         assert_eq!(&sig.display_java().to_string(), java_sig);
     }
 }
 
 #[test]
-fn test_display_types_jni() {
+fn test_display_sigs_jni() {
     for (sig, _, jni_sig) in TEST_SIGS {
         assert_eq!(&sig.display_jni().to_string(), jni_sig);
+    }
+}
+
+#[test]
+fn test_parse_sigs_java() {
+    for (sig, java_sig, _) in TEST_SIGS {
+        assert_eq!(sig, &MethodSig::parse_java(java_sig).unwrap());
     }
 }

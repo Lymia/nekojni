@@ -1,5 +1,6 @@
 use crate::*;
-use pest_derive::*;
+use pest::error::*;
+use pest_consume::{Parser, match_nodes};
 use std::{
     fmt::{Display, Formatter, Write},
     ops::Deref,
@@ -8,6 +9,113 @@ use std::{
 #[derive(Parser)]
 #[grammar = "java_signature.pest"]
 struct JavaParser;
+type Result<T> = std::result::Result<T, Error<Rule>>;
+type Node<'i> = pest_consume::Node<'i, Rule, ()>;
+
+#[pest_consume::parser]
+impl JavaParser {
+    fn ident(input: Node) -> Result<&str> {
+        Ok(input.as_str())
+    }
+
+    fn path(input: Node) -> Result<ClassName> {
+        Ok(match_nodes!(input.children();
+            [ident(names)..] => {
+                let mut vec: Vec<_> = names.collect();
+                let name = match vec.pop() {
+                    Some(x) => x,
+                    None => return Err(input.error("ClassName has no components??")),
+                };
+                ClassName::new_owned(&vec, name)
+            },
+        ))
+    }
+
+    fn ty(input: Node) -> Result<Type> {
+        Ok(match_nodes!(input.children();
+            [path(name), ty_array_braces(braces)..] => {
+                let base = if name.package.is_empty() {
+                    match name.name {
+                        "byte" => Type::Byte,
+                        "short" => Type::Short,
+                        "int" => Type::Int,
+                        "long" => Type::Long,
+                        "float" => Type::Float,
+                        "double" => Type::Double,
+                        "boolean" => Type::Boolean,
+                        "char" => Type::Char,
+                        _ => Type::new(BasicType::Class(name)),
+                    }
+                } else {
+                    Type::new(BasicType::Class(name))
+                };
+                base.array_dim(braces.count())
+            },
+            [path(name), ty_generics(_), ty_array_braces(braces)..] => {
+                Type::new(BasicType::Class(name)).array_dim(braces.count())
+            },
+        ))
+    }
+    fn ty_generics(_input: Node) -> Result<()> {
+        Ok(())
+    }
+    fn ty_array_braces(_input: Node) -> Result<()> {
+        Ok(())
+    }
+
+    fn sig(input: Node) -> Result<MethodSig> {
+        Ok(match_nodes!(input.children();
+            [sig_void(_), ident(_), sig_param_list(params)] => {
+                MethodSig::void_owned(&params)
+            },
+            [ty(ret_ty), ident(_), sig_param_list(params)] => {
+                MethodSig::new_owned(ret_ty, &params)
+            },
+        ))
+    }
+    fn sig_void(input: Node) -> Result<()> {
+        Ok(())
+    }
+    fn sig_param(input: Node) -> Result<MethodParam> {
+        Ok(match_nodes!(input.children();
+            [ty(ty), ident(name)] => MethodParam::new(ty, name),
+        ))
+    }
+    fn sig_param_list(input: Node) -> Result<Vec<MethodParam>> {
+        Ok(match_nodes!(input.children();
+            [sig_param(params)..] => params.collect(),
+        ))
+    }
+
+    fn full_ty(input: Node) -> Result<Type> {
+        Ok(match_nodes!(input.children();
+            [ty(ty), EOI(_)] => ty,
+        ))
+    }
+    fn full_sig(input: Node) -> Result<MethodSig> {
+        Ok(match_nodes!(input.children();
+            [sig(sig), EOI(_)] => sig,
+        ))
+    }
+    fn EOI(_input: Node) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl <'a> MethodSig<'a> {
+    pub fn parse_java(source: &'a str) -> Result<Self> {
+        let mut inputs = JavaParser::parse(Rule::full_sig, source)?;
+        let input = inputs.single()?;
+        JavaParser::full_sig(input)
+    }
+}
+impl <'a> Type<'a> {
+    pub fn parse_java(source: &'a str) -> Result<Self> {
+        let mut inputs = JavaParser::parse(Rule::full_ty, source)?;
+        let input = inputs.single()?;
+        JavaParser::full_ty(input)
+    }
+}
 
 struct DisplayMethodJava<'a>(&'a Method<'a>);
 impl<'a> Display for DisplayMethodJava<'a> {
