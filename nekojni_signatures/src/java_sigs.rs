@@ -1,6 +1,6 @@
 use crate::*;
 use pest::error::*;
-use pest_consume::{Parser, match_nodes};
+use pest_consume::{match_nodes, Parser};
 use std::{
     fmt::{Display, Formatter, Write},
     ops::Deref,
@@ -65,25 +65,17 @@ impl JavaParser {
 
     fn sig(input: Node) -> Result<MethodSig> {
         Ok(match_nodes!(input.children();
-            [sig_void(_), ident(_), sig_param_list(params)] => {
+            [sig_param_list(params)] => {
                 MethodSig::void_owned(&params)
             },
-            [ty(ret_ty), ident(_), sig_param_list(params)] => {
+            [sig_param_list(params), ty(ret_ty)] => {
                 MethodSig::new_owned(ret_ty, &params)
             },
         ))
     }
-    fn sig_void(input: Node) -> Result<()> {
-        Ok(())
-    }
-    fn sig_param(input: Node) -> Result<MethodParam> {
+    fn sig_param_list(input: Node) -> Result<Vec<Type>> {
         Ok(match_nodes!(input.children();
-            [ty(ty), ident(name)] => MethodParam::new(ty, name),
-        ))
-    }
-    fn sig_param_list(input: Node) -> Result<Vec<MethodParam>> {
-        Ok(match_nodes!(input.children();
-            [sig_param(params)..] => params.collect(),
+            [ty(params)..] => params.collect(),
         ))
     }
 
@@ -97,42 +89,35 @@ impl JavaParser {
             [sig(sig), EOI(_)] => sig,
         ))
     }
+    fn full_path(input: Node) -> Result<ClassName> {
+        Ok(match_nodes!(input.children();
+            [path(path), EOI(_)] => path,
+        ))
+    }
     fn EOI(_input: Node) -> Result<()> {
         Ok(())
     }
 }
 
-impl <'a> MethodSig<'a> {
+impl<'a> MethodSig<'a> {
     pub fn parse_java(source: &'a str) -> Result<Self> {
-        let mut inputs = JavaParser::parse(Rule::full_sig, source)?;
+        let inputs = JavaParser::parse(Rule::full_sig, source)?;
         let input = inputs.single()?;
         JavaParser::full_sig(input)
     }
 }
-impl <'a> Type<'a> {
+impl<'a> Type<'a> {
     pub fn parse_java(source: &'a str) -> Result<Self> {
-        let mut inputs = JavaParser::parse(Rule::full_ty, source)?;
+        let inputs = JavaParser::parse(Rule::full_ty, source)?;
         let input = inputs.single()?;
         JavaParser::full_ty(input)
     }
 }
-
-struct DisplayMethodJava<'a>(&'a Method<'a>);
-impl<'a> Display for DisplayMethodJava<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self.0.sig.ret_ty.display_java(), f)?;
-        f.write_char(' ')?;
-        Display::fmt(&self.0.class.display_java(), f)?;
-        f.write_char('.')?;
-        f.write_str(&self.0.name)?;
-        display_params(&self.0.sig, f)?;
-        Ok(())
-    }
-}
-impl<'a> Method<'a> {
-    /// Displays this object in Java syntax.
-    pub fn display_java(&'a self) -> impl Display + 'a {
-        DisplayMethodJava(self)
+impl<'a> ClassName<'a> {
+    pub fn parse_java(source: &'a str) -> Result<Self> {
+        let inputs = JavaParser::parse(Rule::full_path, source)?;
+        let input = inputs.single()?;
+        JavaParser::full_path(input)
     }
 }
 
@@ -153,9 +138,11 @@ fn display_params<'a>(sig: &'a MethodSig<'a>, f: &mut Formatter<'_>) -> std::fmt
 struct DisplayMethodSignatureJava<'a>(&'a MethodSig<'a>);
 impl<'a> Display for DisplayMethodSignatureJava<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self.0.ret_ty.display_java(), f)?;
-        f.write_str(" method")?;
         display_params(self.0, f)?;
+        if self.0.ret_ty != ReturnType::Void {
+            f.write_str(" -> ")?;
+            Display::fmt(&self.0.ret_ty.display_java(), f)?;
+        }
         Ok(())
     }
 }
@@ -179,22 +166,6 @@ impl<'a> ReturnType<'a> {
     /// Displays this object in Java syntax.
     pub fn display_java(&'a self) -> impl Display + 'a {
         DisplayReturnTypeJava(self)
-    }
-}
-
-struct DisplayMethodParameterJava<'a>(&'a MethodParam<'a>);
-impl<'a> Display for DisplayMethodParameterJava<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self.0.ty.display_java(), f)?;
-        f.write_char(' ')?;
-        f.write_str(&self.0.name)?;
-        Ok(())
-    }
-}
-impl<'a> MethodParam<'a> {
-    /// Displays this object in Java syntax.
-    pub fn display_java(&'a self) -> impl Display + 'a {
-        DisplayMethodParameterJava(self)
     }
 }
 

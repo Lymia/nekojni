@@ -3,23 +3,15 @@ use std::borrow::Cow;
 mod java_sigs;
 mod jni_sigs;
 
-/// A full reference to a Java method.
-#[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub struct Method<'a> {
-    pub class: ClassName<'a>,
-    pub name: &'a str,
-    pub sig: MethodSig<'a>,
-}
-
-/// The signature of a given [`Method`].
+/// The signature of a given method.
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub struct MethodSig<'a> {
     pub ret_ty: ReturnType<'a>,
-    pub params: Cow<'a, [MethodParam<'a>]>,
+    pub params: Cow<'a, [Type<'a>]>,
 }
 impl<'a> MethodSig<'a> {
     /// Creates a new method signature.
-    pub const fn new(ret_ty: Type<'a>, params: &'a [MethodParam<'a>]) -> Self {
+    pub const fn new(ret_ty: Type<'a>, params: &'a [Type<'a>]) -> Self {
         MethodSig {
             ret_ty: ReturnType::Ty(ret_ty),
             params: Cow::Borrowed(params),
@@ -27,7 +19,7 @@ impl<'a> MethodSig<'a> {
     }
 
     /// Creates a new method signature with an owned parameter list.
-    pub fn new_owned(ret_ty: Type<'a>, params: &[MethodParam<'a>]) -> Self {
+    pub fn new_owned(ret_ty: Type<'a>, params: &[Type<'a>]) -> Self {
         MethodSig {
             ret_ty: ReturnType::Ty(ret_ty),
             params: Cow::Owned(params.to_owned()),
@@ -35,7 +27,7 @@ impl<'a> MethodSig<'a> {
     }
 
     /// Creates a new method signature that returns void.
-    pub const fn void(params: &'a [MethodParam<'a>]) -> Self {
+    pub const fn void(params: &'a [Type<'a>]) -> Self {
         MethodSig {
             ret_ty: ReturnType::Void,
             params: Cow::Borrowed(params),
@@ -43,7 +35,7 @@ impl<'a> MethodSig<'a> {
     }
 
     /// Creates a new method signature that returns void with an owned parameter list.
-    pub fn void_owned(params: &[MethodParam<'a>]) -> Self {
+    pub fn void_owned(params: &[Type<'a>]) -> Self {
         MethodSig {
             ret_ty: ReturnType::Void,
             params: Cow::Owned(params.to_owned()),
@@ -51,24 +43,11 @@ impl<'a> MethodSig<'a> {
     }
 }
 
-/// The return type of a given [`Method`].
+/// The return type of a given [`MethodSig`].
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum ReturnType<'a> {
     Void,
     Ty(Type<'a>),
-}
-
-/// A parameter to a given [`Method`].
-#[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub struct MethodParam<'a> {
-    pub ty: Type<'a>,
-    pub name: &'a str,
-}
-impl<'a> MethodParam<'a> {
-    /// Create a new method parameter.
-    pub const fn new(ty: Type<'a>, name: &'a str) -> Self {
-        MethodParam { ty, name }
-    }
 }
 
 /// A type signature to be used with JNI.

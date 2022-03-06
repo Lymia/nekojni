@@ -19,4 +19,3 @@ path = { ident ~ ("/" ~ ident)* }
 full_sig = { SOI ~ sig ~ EOI }
 full_method = { SOI ~ method ~ EOI }
 full_path = { SOI ~ path ~ EOI }
-

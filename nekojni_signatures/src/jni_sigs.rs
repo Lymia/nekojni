@@ -9,23 +9,6 @@ use std::{
 #[grammar = "jni_signature.pest"]
 struct JavaParser;
 
-struct DisplayMethodJni<'a>(&'a Method<'a>);
-impl<'a> Display for DisplayMethodJni<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self.0.class.display_jni(), f)?;
-        f.write_char('.')?;
-        f.write_str(&self.0.name)?;
-        Display::fmt(&self.0.sig.display_jni(), f)?;
-        Ok(())
-    }
-}
-impl<'a> Method<'a> {
-    /// Displays this object in JNI descriptor syntax.
-    pub fn display_jni(&'a self) -> impl Display + 'a {
-        DisplayMethodJni(self)
-    }
-}
-
 struct DisplayMethodSignatureJni<'a>(&'a MethodSig<'a>);
 impl<'a> Display for DisplayMethodSignatureJni<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -58,19 +41,6 @@ impl<'a> ReturnType<'a> {
     /// Displays this object in JNI descriptor syntax.
     pub fn display_jni(&'a self) -> impl Display + 'a {
         DisplayReturnTypeJni(self)
-    }
-}
-
-struct DisplayMethodParameterJni<'a>(&'a MethodParam<'a>);
-impl<'a> Display for DisplayMethodParameterJni<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self.0.ty.display_jni(), f)
-    }
-}
-impl<'a> MethodParam<'a> {
-    /// Displays this object in JNI descriptor syntax.
-    pub fn display_jni(&'a self) -> impl Display + 'a {
-        DisplayMethodParameterJni(self)
     }
 }
 
