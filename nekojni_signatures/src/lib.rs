@@ -8,14 +8,47 @@ mod jni_sigs;
 pub struct Method<'a> {
     pub class: ClassName<'a>,
     pub name: &'a str,
-    pub sig: MethodSignature<'a>,
+    pub sig: MethodSig<'a>,
 }
 
 /// The signature of a given [`Method`].
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub struct MethodSignature<'a> {
+pub struct MethodSig<'a> {
     pub ret_ty: ReturnType<'a>,
-    pub params: Cow<'a, [MethodParameter<'a>]>,
+    pub params: Cow<'a, [MethodParam<'a>]>,
+}
+impl<'a> MethodSig<'a> {
+    /// Creates a new method signature.
+    pub const fn new(ret_ty: Type<'a>, params: &'a [MethodParam<'a>]) -> Self {
+        MethodSig {
+            ret_ty: ReturnType::Ty(ret_ty),
+            params: Cow::Borrowed(params),
+        }
+    }
+
+    /// Creates a new method signature with an owned parameter list.
+    pub fn new_owned(ret_ty: Type<'a>, params: &'a [MethodParam<'a>]) -> Self {
+        MethodSig {
+            ret_ty: ReturnType::Ty(ret_ty),
+            params: Cow::Owned(params.to_owned()),
+        }
+    }
+
+    /// Creates a new method signature that returns void.
+    pub const fn void(params: &'a [MethodParam<'a>]) -> Self {
+        MethodSig {
+            ret_ty: ReturnType::Void,
+            params: Cow::Borrowed(params),
+        }
+    }
+
+    /// Creates a new method signature that returns void with an owned parameter list.
+    pub fn void_owned(params: &'a [MethodParam<'a>]) -> Self {
+        MethodSig {
+            ret_ty: ReturnType::Void,
+            params: Cow::Owned(params.to_owned()),
+        }
+    }
 }
 
 /// The return type of a given [`Method`].
@@ -27,9 +60,15 @@ pub enum ReturnType<'a> {
 
 /// A parameter to a given [`Method`].
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub struct MethodParameter<'a> {
+pub struct MethodParam<'a> {
     pub ty: Type<'a>,
     pub name: &'a str,
+}
+impl<'a> MethodParam<'a> {
+    /// Create a new method parameter.
+    pub const fn new(ty: Type<'a>, name: &'a str) -> Self {
+        MethodParam { ty, name }
+    }
 }
 
 /// A type signature to be used with JNI.
@@ -62,7 +101,7 @@ impl<'a> Type<'a> {
         Type::new(BasicType::Class(ClassName::new(package, name)))
     }
 
-    /// Create a new class name with a named package path.
+    /// Create a new class name with an owned package path.
     pub fn class_owned(package: &[&'a str], name: &'a str) -> Self {
         Type::new(BasicType::Class(ClassName::new_owned(package, name)))
     }
@@ -112,7 +151,7 @@ impl<'a> ClassName<'a> {
         }
     }
 
-    /// Create a new class name with a named package path.
+    /// Create a new class name with an owned package path.
     pub fn new_owned(package: &[&'a str], name: &'a str) -> Self {
         ClassName {
             package: Cow::Owned(package.to_owned()),

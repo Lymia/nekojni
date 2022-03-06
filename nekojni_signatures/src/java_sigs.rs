@@ -28,7 +28,7 @@ impl<'a> Method<'a> {
     }
 }
 
-fn display_params<'a>(sig: &'a MethodSignature<'a>, f: &mut Formatter<'_>) -> std::fmt::Result {
+fn display_params<'a>(sig: &'a MethodSig<'a>, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.write_char('(')?;
     let mut is_first = true;
     for param in sig.params.deref() {
@@ -42,7 +42,7 @@ fn display_params<'a>(sig: &'a MethodSignature<'a>, f: &mut Formatter<'_>) -> st
     Ok(())
 }
 
-struct DisplayMethodSignatureJava<'a>(&'a MethodSignature<'a>);
+struct DisplayMethodSignatureJava<'a>(&'a MethodSig<'a>);
 impl<'a> Display for DisplayMethodSignatureJava<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Display::fmt(&self.0.ret_ty.display_java(), f)?;
@@ -51,7 +51,7 @@ impl<'a> Display for DisplayMethodSignatureJava<'a> {
         Ok(())
     }
 }
-impl<'a> MethodSignature<'a> {
+impl<'a> MethodSig<'a> {
     /// Displays this object in Java syntax.
     pub fn display_java(&'a self) -> impl Display + 'a {
         DisplayMethodSignatureJava(self)
@@ -74,7 +74,7 @@ impl<'a> ReturnType<'a> {
     }
 }
 
-struct DisplayMethodParameterJava<'a>(&'a MethodParameter<'a>);
+struct DisplayMethodParameterJava<'a>(&'a MethodParam<'a>);
 impl<'a> Display for DisplayMethodParameterJava<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Display::fmt(&self.0.ty.display_java(), f)?;
@@ -83,7 +83,7 @@ impl<'a> Display for DisplayMethodParameterJava<'a> {
         Ok(())
     }
 }
-impl<'a> MethodParameter<'a> {
+impl<'a> MethodParam<'a> {
     /// Displays this object in Java syntax.
     pub fn display_java(&'a self) -> impl Display + 'a {
         DisplayMethodParameterJava(self)

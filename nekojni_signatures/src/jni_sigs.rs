@@ -26,7 +26,7 @@ impl<'a> Method<'a> {
     }
 }
 
-struct DisplayMethodSignatureJni<'a>(&'a MethodSignature<'a>);
+struct DisplayMethodSignatureJni<'a>(&'a MethodSig<'a>);
 impl<'a> Display for DisplayMethodSignatureJni<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_char('(')?;
@@ -38,7 +38,7 @@ impl<'a> Display for DisplayMethodSignatureJni<'a> {
         Ok(())
     }
 }
-impl<'a> MethodSignature<'a> {
+impl<'a> MethodSig<'a> {
     /// Displays this object in JNI descriptor syntax.
     pub fn display_jni(&'a self) -> impl Display + 'a {
         DisplayMethodSignatureJni(self)
@@ -61,13 +61,13 @@ impl<'a> ReturnType<'a> {
     }
 }
 
-struct DisplayMethodParameterJni<'a>(&'a MethodParameter<'a>);
+struct DisplayMethodParameterJni<'a>(&'a MethodParam<'a>);
 impl<'a> Display for DisplayMethodParameterJni<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Display::fmt(&self.0.ty.display_jni(), f)
     }
 }
-impl<'a> MethodParameter<'a> {
+impl<'a> MethodParam<'a> {
     /// Displays this object in JNI descriptor syntax.
     pub fn display_jni(&'a self) -> impl Display + 'a {
         DisplayMethodParameterJni(self)
