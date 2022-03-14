@@ -11,6 +11,9 @@ use thiserror::Error;
 pub use std::{error::Error as ErrorTrait, result::Result as StdResult};
 
 /// The error type used for `nekojni`.
+///
+/// This error does not implement [`Error`](`ErrorTrait`) to allow a `From` implementation for any
+/// standard error.
 #[derive(Debug)]
 pub struct Error(Box<ErrorData>);
 
@@ -120,6 +123,22 @@ impl Error {
         self.0.override_except_class = Some(class.into());
         self
     }
+
+    /// Returns the cause of this error.
+    pub fn source(&self) -> Option<&(dyn ErrorTrait + 'static)> {
+        ErrorTrait::source(&self.0.data)
+    }
+
+    /// Returns the backtrace for this error.
+    pub fn backtrace(&self) -> Option<&Backtrace> {
+        if let Some(bt) = &self.0.backtrace {
+            Some(bt)
+        } else if let Some(source) = ErrorTrait::source(&self.0.data) {
+            source.backtrace()
+        } else {
+            None
+        }
+    }
 }
 
 impl Display for Error {
@@ -137,51 +156,28 @@ impl Display for Error {
         }
     }
 }
-impl ErrorTrait for Error {
-    fn source(&self) -> Option<&(dyn ErrorTrait + 'static)> {
-        ErrorTrait::source(&self.0.data)
-    }
-    fn backtrace(&self) -> Option<&Backtrace> {
-        if let Some(bt) = &self.0.backtrace {
-            Some(bt)
-        } else if let Some(source) = ErrorTrait::source(&self.0.data) {
-            source.backtrace()
-        } else {
-            None
-        }
+impl <T: ErrorTrait + 'static> From<T> for Error {
+    fn from(t: T) -> Self {
+        Error::wrap(t)
     }
 }
-
-macro_rules! error_from {
-    ($($ty:ty),* $(,)?) => {$(
-        impl From<$ty> for Error {
-            #[inline(never)]
-            #[track_caller]
-            fn from(err: $ty) -> Self {
-                Error::wrap(err)
-            }
-        }
-    )*};
-}
-error_from!(jni::errors::Error, jni::errors::JniError,);
 
 /// The result type used for `nekojni`.
 pub type Result<T> = StdResult<T, Error>;
 
-/// Returns from the current function with an internal [`Error`].
+/// Returns from the current function with an internal [`struct@Error`].
 ///
 /// This requires the function return a [`Result`], and uses the same format as [`format!`].
 #[macro_export]
 macro_rules! jni_bail {
     ($($tt:tt)*) => {
-        #[allow(deprecated)]
         return $crate::__macro_internals::std::result::Result::Err(
             $crate::Error::new($crate::__macro_internals::std::format!($($tt)*))
         )
     }
 }
 
-/// Returns from the current function with an internal [`Error`], if a precondition fails.
+/// Returns from the current function with an internal [`struct@Error`], if a precondition fails.
 ///
 /// This requires the function return a [`Result`], and uses the same format as [`assert!`].
 #[macro_export]
@@ -193,8 +189,8 @@ macro_rules! jni_assert {
     }
 }
 
-/// Returns from the current function with an [`Error`]. Use this function for exceptions that
-/// are meant to be thrown directly to Java code.
+/// Returns from the current function with an [`struct@Error`]. Use this function for exceptions
+/// that are meant to be thrown directly to Java code.
 ///
 /// This requires the function return a [`Result`], and uses the same format as [`format!`].
 ///
@@ -210,21 +206,18 @@ macro_rules! jni_assert {
 #[macro_export]
 macro_rules! jni_throw {
     (@ $exception_class:literal) => {
-        #[allow(deprecated)]
         return $crate::__macro_internals::std::result::Result::Err(
             $crate::Error::new($crate::__macro_internals::std::format!(""))
                 .set_exception_class($exception_class)
         )
     };
     (@ $exception_class:literal, $($tt:tt)*) => {
-        #[allow(deprecated)]
         return $crate::__macro_internals::std::result::Result::Err(
             $crate::Error::new($crate::__macro_internals::std::format!($($tt)*))
                 .set_exception_class($exception_class)
         )
     };
     ($($tt:tt)*) => {
-        #[allow(deprecated)]
         return $crate::__macro_internals::std::result::Result::Err(
             $crate::Error::new($crate::__macro_internals::std::format!($($tt)*))
         )

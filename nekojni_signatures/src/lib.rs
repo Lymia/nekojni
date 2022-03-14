@@ -101,7 +101,7 @@ impl<'a> Type<'a> {
 /// A basic Java type.
 ///
 /// This is a reference to a particular class or a non-array primitive. As arrays can be recursive,
-/// [`TypeSignature`] is used to represent array dimensionality.
+/// [`Type`] is used to represent array dimensionality.
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum BasicType<'a> {
     Byte,

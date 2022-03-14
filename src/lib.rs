@@ -1,4 +1,3 @@
-#![feature(const_fn_trait_bound)]
 #![feature(backtrace)]
 #![deny(unused_must_use)]
 
@@ -16,3 +15,7 @@ mod panicking;
 
 pub use conversions::*;
 pub use errors::{Error, Result};
+
+#[doc(inline)]
+/// The module containing types that represent Java type signatures.
+pub use nekojni_signatures as signatures;

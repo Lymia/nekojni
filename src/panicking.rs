@@ -28,14 +28,25 @@ impl<T, E: ErrorTrait + 'static> MethodReturn<T> for StdResult<T, E> {
     fn is_error(&self) -> bool {
         self.is_err()
     }
+
+    #[inline(never)]
     fn emit_error(self, env: &JNIEnv, exception_class: &str) -> Result<()> {
         let err = self.err().expect("internal error: emit_error called on Ok");
-        let t_ptr = &err as &(dyn ErrorTrait + 'static);
-        if let Some(err) = t_ptr.downcast_ref::<Error>() {
-            err.emit_error(env, exception_class)
-        } else {
-            Error::wrap(err).emit_error(env, exception_class)
-        }
+        Error::wrap(err).emit_error(env, exception_class)
+    }
+}
+impl<T> MethodReturn<T> for Result<T> {
+    fn into_inner(self) -> T {
+        self.expect("internal error: into_inner called on Err")
+    }
+    fn is_error(&self) -> bool {
+        self.is_err()
+    }
+
+    #[inline(never)]
+    fn emit_error(self, env: &JNIEnv, exception_class: &str) -> Result<()> {
+        let err = self.err().expect("internal error: emit_error called on Ok");
+        err.emit_error(env, exception_class)
     }
 }
 
@@ -56,7 +67,7 @@ fn get_panic_string(e: Box<dyn Any + Send + 'static>) -> String {
 fn check_fail(r: Result<()>) {
     if let Err(e) = r {
         eprintln!("Error throwing native exception: {e:?}");
-        eprintln!("[ aborting ]");
+        eprintln!("Aborting due to fatal error...");
         std::process::abort(); // rip
     }
 }
