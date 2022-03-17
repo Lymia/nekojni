@@ -4,14 +4,18 @@ version = "0.1.0"
 authors = ["Lymia Aluysia <lymia@lymia.moe>"]
 edition = "2021"
 
+[features]
+default = ["codegen"]
+codegen = []
+
 [dependencies]
 bytemuck = "1.8.0"
 jni = "0.19"
-parking_lot = { version = "0.12.0", features = ["nightly"] }
+parking_lot = { version = "0.12.0", features = ["nightly", "arc_lock"] }
 thiserror = "1.0.30"
 
 nekojni_macros = { version = "0.1.0", path = "nekojni_macros" }
-nekojni_signatures = { version = "0.1.0", path = "nekojni_signatures" }
+nekojni_signatures = { version = "0.1.0", path = "nekojni_signatures", features = ["jni"] }
 
 [workspace]
 members = ["nekojni_macros", "nekojni_signatures"]

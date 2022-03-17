@@ -8,7 +8,12 @@ const TEST_TYPES: &[(Type<'static>, &'static str, &'static str, &'static str)] =
     (Type::Float, "float", "Float", "F"),
     (Type::Double, "double", "Double", "D"),
     (Type::Boolean, "boolean", "Boolean", "Z"),
-    (Type::Byte.array_dim(3), "byte[][][]", "Array[Array[Array[Byte]]]", "[[[B"),
+    (
+        Type::Byte.array_dim(3),
+        "byte[][][]",
+        "Array[Array[Array[Byte]]]",
+        "[[[B",
+    ),
     (Type::new(BasicType::Int), "int", "Int", "I"),
     (
         Type::Boolean.array_dim(8),

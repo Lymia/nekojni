@@ -5,6 +5,7 @@ authors = ["Lymia Aluysia <lymia@lymia.moe>"]
 edition = "2021"
 
 [dependencies]
+jni = { version = "0.19", optional = true }
 pest = "2.1.3"
 pest_consume = "1.1.1"
 pest_derive = "2.1.0"

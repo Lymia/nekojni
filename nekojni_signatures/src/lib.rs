@@ -2,6 +2,8 @@
 
 mod java_sigs;
 mod jni_exports;
+#[cfg(feature = "jni")]
+mod jni_interop;
 mod jni_sigs;
 mod scala_sigs;
 mod static_list;

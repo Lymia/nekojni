@@ -1,5 +1,4 @@
-#[allow(deprecated)]
-use crate::{__macro_internals::ClassInfo, errors::*, JavaConversion};
+use crate::{errors::*, JavaConversion};
 use jni::JNIEnv;
 use std::{any::Any, panic::AssertUnwindSafe};
 
@@ -85,15 +84,15 @@ pub fn catch_panic<R>(func: impl FnOnce() -> R) -> Result<R> {
 pub fn catch_panic_jni<T: JavaConversion, R: MethodReturn<T>>(
     env: &JNIEnv,
     func: impl FnOnce() -> R,
-    class_info: &ClassInfo,
 ) -> T::JavaType {
     // for safety, just in case there's a bug that might cause panics in e.g. backtrace, since
     // we invoke a lot of weird stuff trying to get the panic string.
     match std::panic::catch_unwind(AssertUnwindSafe(|| {
+        let exception_class = crate::globals::get_default_exception_class();
         match catch_panic(|| {
             let result = func();
             if result.is_error() {
-                check_fail(env.emit_error(env, class_info.exception_class));
+                check_fail(env.emit_error(env, exception_class));
                 T::null()
             } else {
                 result.into_inner().into_java(env)
@@ -101,7 +100,7 @@ pub fn catch_panic_jni<T: JavaConversion, R: MethodReturn<T>>(
         }) {
             Ok(v) => v,
             Err(e) => {
-                check_fail(e.emit_error(env, class_info.exception_class));
+                check_fail(e.emit_error(env, exception_class));
                 T::null()
             }
         }

@@ -15,13 +15,15 @@ mod panicking;
 
 pub use conversions::*;
 pub use errors::{Error, Result};
-pub use java_class::JavaClass;
+pub use java_class::JniRef;
 
 /// The module containing code used for generating Java code from Rust modules.
+#[cfg(feature = "codegen")]
 pub mod codegen;
 
 /// The module contains code relating to the representation of types exported from Java.
 pub mod java_class;
+mod globals;
 
 #[doc(inline)]
 /// The module containing types that represent Java type signatures.
@@ -29,3 +31,12 @@ pub use nekojni_signatures as signatures;
 
 #[doc(inline)]
 pub use nekojni_macros::*;
+
+#[macro_export]
+macro_rules! jni_init {
+    (
+
+    ) => {
+
+    };
+}

@@ -9,7 +9,7 @@ use syn::*;
 
 /// Creates an identifier with a format-like syntax.
 macro_rules! ident {
-    ($($tts:tt)*) => { Ident::new(&format!($($tts)*), ::proc_macro2::Span::call_site()) }
+    ($($tts:tt)*) => { syn::Ident::new(&format!($($tts)*), ::proc_macro2::Span::call_site()) }
 }
 
 /// Emits a `syn` based compile error.
@@ -117,52 +117,6 @@ macro_rules! derived_attr {
 /// See [`derived_attr!`].
 pub fn mark_attribute_processed(attr: &mut Attribute) {
     attr.tokens = quote! { (#ATTR_OK_STR) }.into();
-}
-
-/// Creates generics from a token stream.
-pub fn generics(a: impl ToTokens) -> Generics {
-    parse2::<Generics>(quote! { < #a > }).unwrap()
-}
-
-/// Common function for processing generics.
-fn process_generics(
-    list: &[&Generics],
-    skip_lifetimes: bool,
-    reparent_lifetimes: Option<Lifetime>,
-) -> Generics {
-    let mut toks = SynTokenStream::new();
-    if !skip_lifetimes {
-        for g in list {
-            for lifetime in g.lifetimes() {
-                let mut lifetime = (*lifetime).clone();
-                if let Some(lt) = &reparent_lifetimes {
-                    lifetime.bounds.push(lt.clone());
-                }
-                toks.extend(quote! { #lifetime, })
-            }
-        }
-    }
-    for g in list {
-        for bound in g.type_params() {
-            toks.extend(quote! { #bound, })
-        }
-        for const_bound in g.const_params() {
-            toks.extend(quote! { #const_bound, })
-        }
-    }
-
-    let mut generics = generics(toks);
-    if list.iter().any(|x| x.where_clause.is_some()) {
-        let mut toks = SynTokenStream::new();
-        toks.extend(quote! { where });
-        for g in list {
-            for where_element in &(*g).clone().make_where_clause().predicates {
-                toks.extend(quote! { #where_element, })
-            }
-        }
-        generics.where_clause = Some(parse2(toks).unwrap());
-    }
-    generics
 }
 
 /// Creates a span for an entire TokenStream.

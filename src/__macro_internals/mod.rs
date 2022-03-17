@@ -1,10 +1,7 @@
 mod object_id;
 
-pub use crate::panicking::catch_panic_jni;
+pub use crate::{java_class::jni_ref::RustContents, panicking::catch_panic_jni};
+pub use crate::globals::set_default_exception_class;
 pub use object_id::IdManager;
-
-pub struct ClassInfo {
-    pub exception_class: &'static str,
-}
 
 pub use std;

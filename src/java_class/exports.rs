@@ -1,6 +1,7 @@
 use nekojni_signatures::{ClassName, MethodSig, Type};
 
 /// The visibility of an exported Java type.
+#[derive(Debug)]
 pub enum JavaVisibility {
     /// Represents a `public` visibility
     Public,
@@ -13,6 +14,7 @@ pub enum JavaVisibility {
 }
 
 /// The attributes of a generated method or class.
+#[derive(Debug)]
 #[non_exhaustive]
 pub struct MethodAttributes {
     /// The Java documentation of this method, formatted using the Javadoc or Scaladoc formatting.
@@ -24,6 +26,8 @@ pub struct MethodAttributes {
 /// Represents something exported from a Java class defined in Rust.
 ///
 /// This is primarily intended to allow code generation for the Java-side of the Rust bindings.
+#[derive(Debug)]
+#[non_exhaustive]
 pub enum ExportedItem {
     /// A method exported to JVM code from JNI.
     NativeMethod {
@@ -72,11 +76,14 @@ pub enum ExportedItem {
         java_name: &'static str,
         /// The attributes of the Java field.
         attributes: MethodAttributes,
+        /// The Java type of the field.
+        ty: Type<'static>,
     },
 }
 
-/// A trait representing an exported Java class.
-pub struct ExportedClass {
+/// A trait representing a Java class that may be exported via codegen.
+#[derive(Debug)]
+pub struct CodegenClass {
     /// The Java documentation of this class, formatted using the Javadoc or Scaladoc formatting.
     pub docs: &'static str,
     /// The name of this class.
