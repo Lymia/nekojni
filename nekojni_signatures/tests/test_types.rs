@@ -59,4 +59,3 @@ fn test_parse_types_jni() {
         assert_eq!(ty, &Type::parse_jni(jni_ty).unwrap());
     }
 }
-

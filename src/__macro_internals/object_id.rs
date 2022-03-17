@@ -41,8 +41,7 @@ impl<T: Send + Sync> IdManagerData<T> {
         } else if self.head < self.nodes.len() {
             let new_id = self.head;
             let new_head = match &self.nodes[new_id] {
-                FreeListNode::Data(_) =>
-                    jni_bail!("freelist for '{type_name}': already allocated"),
+                FreeListNode::Data(_) => jni_bail!("freelist for '{type_name}': already allocated"),
                 FreeListNode::Free(head) => *head,
             };
             self.nodes[new_id] = FreeListNode::Data(t);
@@ -67,8 +66,7 @@ impl<T: Send + Sync> IdManagerData<T> {
                     self.head = id;
                     Ok(())
                 }
-                FreeListNode::Free(_) =>
-                    jni_bail!("freelist for '{type_name}': use after free"),
+                FreeListNode::Free(_) => jni_bail!("freelist for '{type_name}': use after free"),
             }
         }
     }

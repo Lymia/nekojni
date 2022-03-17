@@ -156,7 +156,7 @@ impl Display for Error {
         }
     }
 }
-impl <T: ErrorTrait + 'static> From<T> for Error {
+impl<T: ErrorTrait + 'static> From<T> for Error {
     fn from(t: T) -> Self {
         Error::wrap(t)
     }

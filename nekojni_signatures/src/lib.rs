@@ -1,6 +1,9 @@
+#![deny(unused_must_use)]
+
 use std::borrow::Cow;
 
 mod java_sigs;
+mod jni_exports;
 mod jni_sigs;
 
 /// The signature of a given method.
@@ -136,5 +139,18 @@ impl<'a> ClassName<'a> {
             package: Cow::Owned(package.to_owned()),
             name,
         }
+    }
+}
+
+/// The name of a Java method.
+#[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
+pub struct MethodName<'a> {
+    pub class: ClassName<'a>,
+    pub name: &'a str,
+}
+impl<'a> MethodName<'a> {
+    /// Create a new class name.
+    pub const fn new(class: ClassName<'a>, name: &'a str) -> Self {
+        MethodName { class, name }
     }
 }
