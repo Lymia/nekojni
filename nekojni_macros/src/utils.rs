@@ -120,18 +120,6 @@ pub fn mark_attribute_processed(attr: &mut Attribute) {
 }
 
 /// Creates generics from a token stream.
-///
-/// # Example
-///
-/// ```rust
-/// # use static_events_internals::utils::generics;
-/// # use syn::Generics;
-/// # use quote::*;
-/// let generics: Generics = generics(quote! {
-///     A, B: Copy,
-/// });
-/// # drop(generics);
-/// ```
 pub fn generics(a: impl ToTokens) -> Generics {
     parse2::<Generics>(quote! { < #a > }).unwrap()
 }

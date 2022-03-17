@@ -32,29 +32,37 @@ impl JavaParser {
     }
 
     fn ty(input: Node) -> Result<Type> {
-        Ok(match_nodes!(input.children();
-            [path(name), ty_array_braces(braces)..] => {
-                let base = if name.package.is_empty() {
-                    match name.name {
-                        "byte" => Type::Byte,
-                        "short" => Type::Short,
-                        "int" => Type::Int,
-                        "long" => Type::Long,
-                        "float" => Type::Float,
-                        "double" => Type::Double,
-                        "boolean" => Type::Boolean,
-                        "char" => Type::Char,
-                        _ => Type::new(BasicType::Class(name)),
-                    }
-                } else {
-                    Type::new(BasicType::Class(name))
-                };
-                base.array_dim(braces.count())
-            },
-        ))
+        let (name, generics, braces) = match_nodes!(input.children();
+            [path(name), ty_array_braces(braces)..] =>
+                (name, StaticList::Borrowed(&[]), braces),
+            [path(name), ty_generics(generics), ty_array_braces(braces)..] =>
+                (name, StaticList::Owned(generics), braces),
+        );
+        let mut base = if name.package.is_empty() {
+            match name.name {
+                "byte" => Type::Byte,
+                "short" => Type::Short,
+                "int" => Type::Int,
+                "long" => Type::Long,
+                "float" => Type::Float,
+                "double" => Type::Double,
+                "boolean" => Type::Boolean,
+                "char" => Type::Char,
+                _ => Type::new(BasicType::Class(name)),
+            }
+        } else {
+            Type::new(BasicType::Class(name))
+        };
+        base.generics = generics;
+        Ok(base.array_dim(braces.count()))
     }
     fn ty_array_braces(_input: Node) -> Result<()> {
         Ok(())
+    }
+    fn ty_generics(input: Node) -> Result<Vec<Type>> {
+        Ok(match_nodes!(input.children();
+            [ty(params)..] => params.collect(),
+        ))
     }
 
     fn sig(input: Node) -> Result<MethodSig> {
@@ -176,6 +184,18 @@ struct DisplayTypeJava<'a>(&'a Type<'a>);
 impl<'a> Display for DisplayTypeJava<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Display::fmt(&self.0.basic_sig.display_java(), f)?;
+        if !self.0.generics.is_empty() {
+            f.write_char('<')?;
+            let mut is_first = true;
+            for generic in self.0.generics.as_slice() {
+                if !is_first {
+                    f.write_str(", ")?;
+                }
+                Display::fmt(&generic.display_java(), f)?;
+                is_first = false;
+            }
+            f.write_char('>')?;
+        }
         for _ in 0..self.0.array_dim {
             f.write_str("[]")?;
         }

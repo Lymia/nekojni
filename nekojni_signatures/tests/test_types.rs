@@ -31,10 +31,36 @@ const TEST_TYPES: &[(Type<'static>, &'static str, &'static str)] = &[
         "Ljava/util/ArrayList;",
     ),
 ];
+const TEST_TYPES_GENERIC: &[(Type<'static>, &'static str, &'static str)] = &[
+    (
+        Type::generic_class(&["java", "util"], "ArrayList", {
+            const GENERICS: &'static [Type<'static>] = &[
+                Type::class(&["java", "lang"], "String"),
+            ];
+            GENERICS
+        }),
+        "java.util.ArrayList<java.lang.String>",
+        "Ljava/util/ArrayList;",
+    ),
+    (
+        Type::generic_class(&["java", "util"], "HashMap", {
+            const GENERICS: &'static [Type<'static>] = &[
+                Type::class(&["java", "lang"], "String"),
+                Type::class(&["java", "lang"], "String"),
+            ];
+            GENERICS
+        }).array(),
+        "java.util.HashMap<java.lang.String, java.lang.String>[]",
+        "[Ljava/util/HashMap;",
+    ),
+];
 
 #[test]
 fn test_display_types_java() {
     for (ty, java_ty, _) in TEST_TYPES {
+        assert_eq!(&ty.display_java().to_string(), java_ty);
+    }
+    for (ty, java_ty, _) in TEST_TYPES_GENERIC {
         assert_eq!(&ty.display_java().to_string(), java_ty);
     }
 }
@@ -44,11 +70,17 @@ fn test_display_types_jni() {
     for (ty, _, jni_ty) in TEST_TYPES {
         assert_eq!(&ty.display_jni().to_string(), jni_ty);
     }
+    for (ty, _, jni_ty) in TEST_TYPES_GENERIC {
+        assert_eq!(&ty.display_jni().to_string(), jni_ty);
+    }
 }
 
 #[test]
 fn test_parse_types_java() {
     for (ty, java_ty, _) in TEST_TYPES {
+        assert_eq!(ty, &Type::parse_java(java_ty).unwrap());
+    }
+    for (ty, java_ty, _) in TEST_TYPES_GENERIC {
         assert_eq!(ty, &Type::parse_java(java_ty).unwrap());
     }
 }
