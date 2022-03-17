@@ -3,6 +3,7 @@
 mod java_sigs;
 mod jni_exports;
 mod jni_sigs;
+mod scala_sigs;
 mod static_list;
 
 pub use static_list::StaticList;
@@ -137,6 +138,11 @@ impl<'a> Type<'a> {
         self.array_dim += dims;
         self
     }
+
+    /// Returns whether this is a primitive type.
+    pub fn is_primitive(&self) -> bool {
+        self.array_dim != 0 || self.basic_sig.is_primitive()
+    }
 }
 
 /// A basic Java type.
@@ -154,6 +160,22 @@ pub enum BasicType<'a> {
     Boolean,
     Char,
     Class(ClassName<'a>),
+}
+impl<'a> BasicType<'a> {
+    /// Returns whether this is a primitive type.
+    pub fn is_primitive(&self) -> bool {
+        match self {
+            BasicType::Byte => true,
+            BasicType::Short => true,
+            BasicType::Int => true,
+            BasicType::Long => true,
+            BasicType::Float => true,
+            BasicType::Double => true,
+            BasicType::Boolean => true,
+            BasicType::Char => true,
+            BasicType::Class(_) => false,
+        }
+    }
 }
 
 /// The name of a Java class, including its full package path.

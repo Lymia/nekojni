@@ -1,6 +1,8 @@
-use std::cmp::Ordering;
-use std::hash::{Hash, Hasher};
-use std::ops::Deref;
+use std::{
+    cmp::Ordering,
+    hash::{Hash, Hasher},
+    ops::Deref,
+};
 
 /// Represents a list that may or may not be borrowed from another list.
 ///

@@ -1,6 +1,6 @@
 use nekojni_signatures::*;
 
-const TEST_SIGS: &[(MethodSig<'static>, &'static str, &'static str)] = &[
+const TEST_SIGS: &[(MethodSig<'static>, &'static str, &'static str, &'static str)] = &[
     (
         MethodSig::void({
             const PARAMS: &'static [Type<'_>] = &[
@@ -16,7 +16,14 @@ const TEST_SIGS: &[(MethodSig<'static>, &'static str, &'static str)] = &[
             PARAMS
         }),
         "(byte, short, int, long, float, double, boolean, char)",
+        "(Byte, Short, Int, Long, Float, Double, Boolean, Char) => Unit",
         "(BSIJFDZC)V",
+    ),
+    (
+        MethodSig::new(Type::class(&["java", "lang"], "String"), &[]),
+        "() -> java.lang.String",
+        "() => java.lang.String",
+        "()Ljava/lang/String;",
     ),
     (
         MethodSig::new(Type::class(&["java", "lang"], "String").array(), {
@@ -28,34 +35,49 @@ const TEST_SIGS: &[(MethodSig<'static>, &'static str, &'static str)] = &[
             PARAMS
         }),
         "(byte, short[], java.lang.String) -> java.lang.String[]",
+        "(Byte, Array[Short], java.lang.String) => Array[java.lang.String]",
         "(B[SLjava/lang/String;)[Ljava/lang/String;",
     ),
 ];
 
 #[test]
 fn test_display_sigs_java() {
-    for (sig, java_sig, _) in TEST_SIGS {
+    for (sig, java_sig, _, _) in TEST_SIGS {
         assert_eq!(&sig.display_java().to_string(), java_sig);
     }
 }
 
 #[test]
+fn test_display_sigs_scala() {
+    for (sig, _, scala_sig, _) in TEST_SIGS {
+        assert_eq!(&sig.display_scala().to_string(), scala_sig);
+    }
+}
+
+#[test]
 fn test_display_sigs_jni() {
-    for (sig, _, jni_sig) in TEST_SIGS {
+    for (sig, _, _, jni_sig) in TEST_SIGS {
         assert_eq!(&sig.display_jni().to_string(), jni_sig);
     }
 }
 
 #[test]
 fn test_parse_sigs_java() {
-    for (sig, java_sig, _) in TEST_SIGS {
+    for (sig, java_sig, _, _) in TEST_SIGS {
         assert_eq!(sig, &MethodSig::parse_java(java_sig).unwrap());
     }
 }
 
 #[test]
+fn test_parse_sigs_scala() {
+    for (sig, _, scala_sig, _) in TEST_SIGS {
+        assert_eq!(sig, &MethodSig::parse_scala(scala_sig).unwrap());
+    }
+}
+
+#[test]
 fn test_parse_sigs_jni() {
-    for (sig, _, jni_sig) in TEST_SIGS {
+    for (sig, _, _, jni_sig) in TEST_SIGS {
         assert_eq!(sig, &MethodSig::parse_jni(jni_sig).unwrap());
     }
 }
