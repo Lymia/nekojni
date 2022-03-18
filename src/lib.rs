@@ -14,7 +14,7 @@ mod globals;
 mod panicking;
 
 pub use errors::{Error, Result};
-pub use java_class::JniRef;
+pub use java_class::{JniRef, JniRefMut};
 
 /// The module containing code used for generating Java code from Rust modules.
 #[cfg(feature = "codegen")]

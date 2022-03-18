@@ -101,7 +101,7 @@ macro_rules! derived_attr {
         )
     };
     (@error_str $attr:ident ($($head:tt)*) $inside:ident, $($rest:ident,)*) => {
-        derived_attr!(@error_str ("#[", stringify!($inside), "], ",) $($rest,)*)
+        derived_attr!(@error_str $attr ("#[", stringify!($inside), "], ",) $($rest,)*)
     };
     ($event_name:ident, $($inside:ident),* $(,)?) => {
         #[proc_macro_attribute]

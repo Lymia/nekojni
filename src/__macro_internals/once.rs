@@ -2,13 +2,13 @@ use jni::strings::JNIString;
 use parking_lot::Once;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
-pub struct SignatureCache {
+pub struct JNIStrCache {
     once: Once,
     cache: AtomicPtr<JNIString>,
 }
-impl SignatureCache {
+impl JNIStrCache {
     pub const fn new() -> Self {
-        SignatureCache {
+        JNIStrCache {
             once: Once::new(),
             cache: AtomicPtr::new(std::ptr::null_mut()),
         }

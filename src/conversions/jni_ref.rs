@@ -1,10 +1,9 @@
 #![allow(deprecated)]
 
-use crate::{conversions::*, JniRef};
+use crate::{conversions::*, java_class::JavaClass, JniRef};
 use jni::objects::JObject;
-use crate::java_class::JavaClass;
 
-impl <'env, T: JavaClass> JavaConversion<'env> for JniRef<'env, T> {
+impl<'env, T: JavaClass> JavaConversion<'env> for JniRef<'env, T> {
     const JAVA_TYPE: Type<'static> = T::JAVA_TYPE;
     type JavaType = JObject<'env>;
 
@@ -19,7 +18,7 @@ impl <'env, T: JavaClass> JavaConversion<'env> for JniRef<'env, T> {
         JObject::from(std::ptr::null_mut())
     }
 }
-impl <'env, T: JavaClass> JavaConversionOwned<'env> for JniRef<'env, T> {
+impl<'env, T: JavaClass> JavaConversionOwned<'env> for JniRef<'env, T> {
     fn from_java(java: Self::JavaType, env: JNIEnv<'env>) -> Self {
         T::create_jni_ref(env, java)
     }
@@ -27,7 +26,10 @@ impl <'env, T: JavaClass> JavaConversionOwned<'env> for JniRef<'env, T> {
         if let JValue::Object(value) = java {
             Ok(Self::from_java(value.into(), env))
         } else {
-            jni_bail!("Type error: expected {} got {java:?}", T::JAVA_TYPE.display_java());
+            jni_bail!(
+                "Type error: expected {} got {java:?}",
+                T::JAVA_TYPE.display_java()
+            );
         }
     }
 }

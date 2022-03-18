@@ -2,9 +2,9 @@ mod exports;
 pub(crate) mod jni_ref;
 
 pub use exports::*;
-pub use jni_ref::{JniRef, JniRefRead, JniRefType, JniRefWrite};
+pub use jni_ref::{JniRef, JniRefMut};
 
-use jni::{sys::jobject, JNIEnv};
+use jni::JNIEnv;
 
 /// A trait representing a Java class.
 #[allow(deprecated)]

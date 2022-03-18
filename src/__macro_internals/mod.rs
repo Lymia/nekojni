@@ -7,17 +7,16 @@ use crate::{
     java_class::{CodegenClass, JavaClass},
     JniRef,
 };
-use jni::JNIEnv;
+use jni::{objects::JObject, JNIEnv};
 use nekojni_signatures::Type;
 use parking_lot::RwLock;
 
 pub use crate::{globals::set_default_exception_class, panicking::catch_panic_jni};
 pub use object_id::IdManager;
-pub use once::SignatureCache;
+pub use once::JNIStrCache;
 pub use return_ty::ImportReturnTy;
 
 pub use jni;
-use jni::objects::JObject;
 pub use std;
 
 pub mod jni_ref {
@@ -34,20 +33,12 @@ pub trait JavaClassImpl: Sized + Send + Sync + 'static {
     /// Called on initialization to register JNI methods.
     fn register_methods(&self, env: JNIEnv) -> Result<()>;
 
-    /// A cache stored in every [`JniRef`] pointer.
-    type RefCache;
-
-    /// Creates the `RefCache` given a this pointer and the JNI environment.
-    fn create_ref_cache<'env>(env: JNIEnv<'env>, this: JObject<'env>) -> Result<Self::RefCache>;
-
     /// Returns the default pointer for references not generated with [`RustContents`].
-    fn default_ptr(cache: &Self::RefCache) -> &Self;
+    fn default_ptr() -> &'static Self;
 
     /// Creates a new [`JniRef`] for this class.
-    fn create_jni_ref<'env>(
-        env: JNIEnv<'env>,
-        obj: JObject<'env>
-    ) -> JniRef<'env, Self> where Self: JavaClass;
+    fn create_jni_ref<'env>(env: JNIEnv<'env>, obj: JObject<'env>) -> JniRef<'env, Self>
+    where Self: JavaClass;
 }
 
 pub trait RustContents: JavaClass {

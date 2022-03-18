@@ -1,23 +1,7 @@
-use crate::{errors::*, utils::*, MacroCtx, SynTokenStream};
-use proc_macro2::{Ident, TokenStream};
+use crate::{errors::*, java_class::JavaClassCtx, utils::*, MacroCtx};
+use proc_macro2::TokenStream as SynTokenStream;
 use quote::quote;
-use syn::{
-    parse2, spanned::Spanned, FnArg, GenericArgument, ImplItem, ImplItemMethod, ItemImpl, Pat,
-    PatType, PathArguments, PathSegment, ReturnType, Signature, Type,
-};
-
-#[derive(Default)]
-struct JavaClassComponents {
-    sym_uid: usize,
-    wrapper_funcs: SynTokenStream,
-}
-impl JavaClassComponents {
-    fn gensym(&mut self, prefix: &str) -> Ident {
-        let ident = ident!("{}_{}", prefix, self.sym_uid);
-        self.sym_uid += 1;
-        ident
-    }
-}
+use syn::{parse2, spanned::Spanned, FnArg, ImplItemMethod, Pat, ReturnType, Signature, Type};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum FuncSelfMode {
@@ -152,7 +136,7 @@ fn process_method_args(
 
 fn method_wrapper_java(
     ctx: &MacroCtx,
-    components: &mut JavaClassComponents,
+    components: &mut JavaClassCtx,
     item: &mut ImplItemMethod,
 ) -> Result<()> {
     if !item.block.stmts.is_empty() {
@@ -181,9 +165,9 @@ fn method_wrapper_java(
             quote!(),
         ),
         FuncSelfMode::Static => (
-            quote!(env: impl #std::convert::AsRef<#jni::JNIEnv<'envlt>>),
-            quote!(env.as_ref()),
-            quote!(<'envlt>),
+            quote!(env: impl #std::convert::AsRef<#jni::JNIEnv<'env>>),
+            quote!(*env.as_ref()),
+            quote!(<'env>),
         ),
 
         FuncSelfMode::SelfRef => error(
@@ -215,19 +199,38 @@ fn method_wrapper_java(
 
             param_conversion.extend(quote! {
                 let #java_name = <#ty as #nekojni::conversions::JavaConversion>::to_java(
-                    #in_arg, &env,
+                    #in_arg, env,
                 );
             });
             param_names.push(in_name);
         }
 
+        let ret_ty = match &item.sig.output {
+            ReturnType::Default => quote! { () },
+            ReturnType::Type(_, ty) => quote! { #ty },
+        };
+
         let mut body = quote! {
             const PARAMS: &'static [#nekojni::signatures::Type<'static>] = &[
                 #(<#param_types as #nekojni::conversions::JavaConversion>::JAVA_TYPE,)*
             ];
+            const RETURN_TY: #nekojni::signatures::ReturnType<'static> =
+                <#ret_ty as #nekojni_internal::ImportReturnTy>::JAVA_TYPE;
+            const SIGNATURE: #nekojni::signatures::MethodSig<'static> =
+                #nekojni::signatures::MethodSig {
+                    ret_ty: RETURN_TY,
+                    params: #nekojni::signatures::StaticList::Borrowed(PARAMS),
+                };
+
+            static SIGNATURE_CACHE: #nekojni_internal::JNIStrCache =
+                #nekojni_internal::JNIStrCache::new();
 
             let env = #env;
             #param_conversion
+            let signature_name = SIGNATURE_CACHE.init(|| {
+                SIGNATURE.display_jni().to_string().into()
+            });
+            todo!()
         };
         if self_mode == FuncSelfMode::Static {
             let wrapper_fn = components.gensym("wrapper_fn");
@@ -257,7 +260,7 @@ fn method_wrapper_java(
 
 fn method_wrapper_exported(
     ctx: &MacroCtx,
-    components: &mut JavaClassComponents,
+    components: &mut JavaClassCtx,
     item: &mut ImplItemMethod,
 ) -> Result<()> {
     item.sig.abi = None;
@@ -267,9 +270,9 @@ fn method_wrapper_exported(
     Ok(())
 }
 
-fn method_wrapper(
+pub(crate) fn method_wrapper(
     ctx: &MacroCtx,
-    components: &mut JavaClassComponents,
+    components: &mut JavaClassCtx,
     item: &mut ImplItemMethod,
 ) -> Result<()> {
     if item.sig.generics.params.iter().next().is_some() {
@@ -278,6 +281,15 @@ fn method_wrapper(
             "`#[jni_exports]` may not contain generic functions.",
         )?;
     }
+
+    // process the method's attributes
+    for attr in &mut item.attrs {
+        if last_path_segment(&attr.path) == "jni" {
+            mark_attribute_processed(attr);
+        }
+    }
+
+    // process the method itself
     if let Some(abi) = &item.sig.abi {
         if let Some(abi) = &abi.name {
             let abi = abi.value();
@@ -287,36 +299,4 @@ fn method_wrapper(
         }
     }
     method_wrapper_exported(ctx, components, item)
-}
-
-pub fn jni_export(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
-    let ctx = MacroCtx::new()?;
-    let mut item = parse2::<ItemImpl>(item)?;
-    let mut components = JavaClassComponents::default();
-
-    if item.generics.params.iter().next().is_some() {
-        error(
-            item.generics.span(),
-            "`#[jni_exports]` may not be used with generic impls.",
-        )?;
-    }
-
-    let mut errors = Error::empty();
-    for item in &mut item.items {
-        match item {
-            ImplItem::Method(item) => {
-                if let Err(e) = method_wrapper(&ctx, &mut components, item) {
-                    errors = errors.combine(e);
-                }
-            }
-            _ => {}
-        }
-    }
-    if !errors.is_empty() {
-        return Err(errors);
-    }
-
-    Ok(quote! {
-        #item
-    })
 }

@@ -34,3 +34,5 @@ impl MacroCtx {
 pub fn jni_export(attr: TokenStream, item: TokenStream) -> TokenStream {
     try_syn!(java_class::jni_export(attr.into(), item.into())).into()
 }
+
+derived_attr!(jni, jni_export, jni_import);

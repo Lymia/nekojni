@@ -40,7 +40,6 @@ pub struct JniRef<'env, T: JavaClass, R: JniRefType = JniRefRead> {
     this: JObject<'env>,
     inner: InnerRef<T>,
     env: JNIEnv<'env>,
-    ref_cache: T::RefCache,
     phantom: PhantomData<R>,
 }
 impl<'env, T: JavaClass, R: JniRefType> JniRef<'env, T, R> {
@@ -52,11 +51,6 @@ impl<'env, T: JavaClass, R: JniRefType> JniRef<'env, T, R> {
     /// Returns the [`JNIEnv`] associated with this pointer.
     pub fn env(this: &Self) -> JNIEnv<'env> {
         this.env
-    }
-
-    /// Returns the JvmInterface associated with this pointer.
-    pub fn ref_cache(this: &Self) -> &T::RefCache {
-        &this.ref_cache
     }
 }
 
@@ -76,7 +70,6 @@ impl<'env, T: JavaClass> JniRef<'env, T> {
                 InnerRef::Write(write) => InnerRef::Write(write),
             },
             env: self.env,
-            ref_cache: self.ref_cache,
             phantom: PhantomData,
         }
     }
@@ -86,7 +79,7 @@ impl<'env, T: JavaClass, R: JniRefType> Deref for JniRef<'env, T, R> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         match &self.inner {
-            InnerRef::Default => T::default_ptr(&self.ref_cache),
+            InnerRef::Default => T::default_ptr(),
             InnerRef::Read(p) => &p,
             InnerRef::Write(p) => &p,
         }
@@ -117,14 +110,12 @@ pub fn new_rust<'env, T: RustContents>(
         JValue::Int(i) => i as u32,
         _ => unreachable!(),
     };
-    let jvm = T::create_ref_cache(env, this)?;
     let lock = T::get_manager().get(id)?;
     let inner = InnerRef::Read(lock.upgradable_read_arc());
     Ok(JniRef {
         this,
         inner,
         env,
-        ref_cache: jvm,
         phantom: PhantomData,
     })
 }
@@ -138,7 +129,6 @@ pub fn new_wrapped<'env, T: JavaClass>(
         this,
         inner: InnerRef::Default,
         env,
-        ref_cache: T::create_ref_cache(env, this)?,
         phantom: PhantomData,
     })
 }
