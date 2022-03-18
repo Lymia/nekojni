@@ -1,110 +1,152 @@
 #![allow(deprecated)]
 
 use crate::{__macro_internals::RustContents, errors::*, java_class::*};
-use jni::objects::JValue;
+use jni::objects::{JObject, JValue};
 use parking_lot::{
-    lock_api::{ArcRwLockReadGuard, ArcRwLockWriteGuard},
+    lock_api::{ArcRwLockUpgradableReadGuard, ArcRwLockWriteGuard},
     RawRwLock,
 };
-use std::ops::{Deref, DerefMut};
+use std::{
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+};
+
+mod sealed {
+    pub trait Sealed {}
+}
+
+/// A marker trait used to represent a possible mode of a [`JniRef`].
+pub trait JniRefType: sealed::Sealed {}
+
+/// A marker trait for read-only [`JniRef`]s.
+pub enum JniRefRead {}
+
+/// A marker trait for read-write [`JniRef`]s
+pub enum JniRefWrite {}
+
+impl sealed::Sealed for JniRefRead {}
+impl sealed::Sealed for JniRefWrite {}
+impl JniRefType for JniRefRead {}
+impl JniRefType for JniRefWrite {}
 
 enum InnerRef<T> {
-    None,
-    Immutable(ArcRwLockReadGuard<RawRwLock, T>),
-    Mutable(ArcRwLockWriteGuard<RawRwLock, T>),
+    Default,
+    Read(ArcRwLockUpgradableReadGuard<RawRwLock, T>),
+    Write(ArcRwLockWriteGuard<RawRwLock, T>),
 }
 
 /// A pointer type holding a JNI environment and a an exported object.
-pub struct JniRef<T: JavaClass> {
-    this: jobject,
+pub struct JniRef<'env, T: JavaClass, R: JniRefType = JniRefRead> {
+    this: JObject<'env>,
     inner: InnerRef<T>,
-    env: JNIEnv<'static>,
-    jvm: T::JvmInterface,
+    env: JNIEnv<'env>,
+    ref_cache: T::RefCache,
+    phantom: PhantomData<R>,
 }
-impl<T: JavaClass> JniRef<T> {
-    /// Returns the raw [`jobject`] associated with this pointer.
-    pub(crate) fn this(this: &Self) -> jobject {
+impl<'env, T: JavaClass, R: JniRefType> JniRef<'env, T, R> {
+    /// Returns the underlying [`JObject`] associated with this pointer.
+    pub fn this(this: &Self) -> JObject<'env> {
         this.this
     }
 
     /// Returns the [`JNIEnv`] associated with this pointer.
-    pub fn env(this: &Self) -> &JNIEnv {
-        &this.env
+    pub fn env(this: &Self) -> JNIEnv<'env> {
+        this.env
     }
 
     /// Returns the JvmInterface associated with this pointer.
-    pub fn interface(this: &Self) -> &T::JvmInterface {
-        &this.jvm
+    pub fn ref_cache(this: &Self) -> &T::RefCache {
+        &this.ref_cache
     }
 }
 
-impl<T: JavaClass> Deref for JniRef<T>
-where T: RustContents
-{
+impl<'env, T: JavaClass> JniRef<'env, T> {
+    /// Upgrades this [`JniRef`] into a [`JniRefMut`]. As this requires an owning reference, this
+    /// may only be used in practice with references returned from Java functions.
+    pub fn upgrade(self) -> JniRefMut<'env, T> {
+        JniRef {
+            this: self.this,
+            inner: match self.inner {
+                InnerRef::Default => {
+                    panic!("internal error: ugprading `JniRef` with no Rust contents.")
+                }
+                InnerRef::Read(read) => {
+                    InnerRef::Write(ArcRwLockUpgradableReadGuard::upgrade(read))
+                }
+                InnerRef::Write(write) => InnerRef::Write(write),
+            },
+            env: self.env,
+            ref_cache: self.ref_cache,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<'env, T: JavaClass, R: JniRefType> Deref for JniRef<'env, T, R> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         match &self.inner {
-            InnerRef::Immutable(p) => &p,
-            InnerRef::Mutable(p) => &p,
-            InnerRef::None => none_fail(),
+            InnerRef::Default => T::default_ptr(&self.ref_cache),
+            InnerRef::Read(p) => &p,
+            InnerRef::Write(p) => &p,
         }
     }
 }
-impl<T: JavaClass> DerefMut for JniRef<T>
-where T: RustContents
-{
+impl<'env, T: JavaClass> DerefMut for JniRef<'env, T, JniRefWrite> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match &mut self.inner {
-            InnerRef::Immutable(_) => imm_fail(),
-            InnerRef::Mutable(p) => p.deref_mut(),
-            InnerRef::None => none_fail(),
+            InnerRef::Default => mut_ptr_fail(),
+            InnerRef::Read(_) => mut_ptr_fail(),
+            InnerRef::Write(p) => p.deref_mut(),
         }
     }
 }
 
-impl<'a, T: JavaClass> AsRef<JNIEnv<'a>> for &'a JniRef<T> {
-    fn as_ref(&self) -> &JNIEnv<'a> {
-        JniRef::env(self)
+impl<'a, 'env: 'a, T: JavaClass> AsRef<JNIEnv<'env>> for &'a JniRef<'env, T> {
+    fn as_ref(&self) -> &JNIEnv<'env> {
+        &self.env
     }
 }
 
 /// Creates a new [`JniRef`] from a JNI environment and a java object containing an ID.
-pub unsafe fn new<T: RustContents>(env: &JNIEnv, this: jobject, is_mut: bool) -> Result<JniRef<T>> {
+pub fn new_rust<'env, T: RustContents>(
+    env: JNIEnv<'env>,
+    this: JObject<'env>,
+) -> Result<JniRef<'env, T>> {
     let id = match env.get_field(this, T::ID_FIELD, "I")? {
         JValue::Int(i) => i as u32,
         _ => unreachable!(),
     };
-    let jvm = T::create_interface(env, this)?;
+    let jvm = T::create_ref_cache(env, this)?;
     let lock = T::get_manager().get(id)?;
-    let inner = if is_mut {
-        InnerRef::Mutable(lock.write_arc())
-    } else {
-        InnerRef::Immutable(lock.read_arc())
-    };
+    let inner = InnerRef::Read(lock.upgradable_read_arc());
     Ok(JniRef {
         this,
         inner,
-        env: { JNIEnv::from_raw(env.get_native_interface())? },
-        jvm,
+        env,
+        ref_cache: jvm,
+        phantom: PhantomData,
     })
 }
 
 /// Creates a new [`JniRef`] from a JNI environment and a java object.
-pub unsafe fn new_wrapped<T: JavaClass>(env: &JNIEnv, this: jobject) -> Result<JniRef<T>> {
+pub fn new_wrapped<'env, T: JavaClass>(
+    env: JNIEnv<'env>,
+    this: JObject<'env>,
+) -> Result<JniRef<'env, T>> {
     Ok(JniRef {
         this,
-        inner: InnerRef::None,
-        env: { JNIEnv::from_raw(env.get_native_interface())? },
-        jvm: T::create_interface(env, this)?,
+        inner: InnerRef::Default,
+        env,
+        ref_cache: T::create_ref_cache(env, this)?,
+        phantom: PhantomData,
     })
 }
 
-#[inline(never)]
-fn imm_fail() -> ! {
-    panic!("attempted mutable dereference of immutable pointer??")
-}
+/// A [`JniRef`] that allows read-write access to its contents.
+pub type JniRefMut<'env, T> = JniRef<'env, T, JniRefWrite>;
 
 #[inline(never)]
-fn none_fail() -> ! {
-    panic!("attempted dereference of JniRef with no Rust contents?")
+fn mut_ptr_fail() -> ! {
+    panic!("internal error: read-only lock in `JniRefMut`?")
 }

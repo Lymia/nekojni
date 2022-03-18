@@ -106,7 +106,7 @@ impl Error {
     }
 
     /// Emits an error into an [`JNIEnv`]
-    pub fn emit_error(&self, env: &JNIEnv, exception_class: &str) -> Result<()> {
+    pub fn emit_error(&self, env: JNIEnv, exception_class: &str) -> Result<()> {
         let class = match &self.0.override_except_class {
             Some(x) => x,
             None => exception_class,

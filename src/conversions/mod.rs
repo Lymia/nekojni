@@ -3,17 +3,17 @@ use jni::{objects::JValue, sys::*, JNIEnv};
 use nekojni_signatures::*;
 
 macro_rules! impl_borrowed_from_owned {
-    () => {
+    ($env:lifetime) => {
         fn from_java_ref<R>(
             java: Self::JavaType,
-            env: &JNIEnv,
+            env: JNIEnv<$env>,
             func: impl FnOnce(&Self) -> R,
         ) -> R {
             func(&Self::from_java(java, env))
         }
         fn from_java_mut<R>(
             java: Self::JavaType,
-            env: &JNIEnv,
+            env: JNIEnv<$env>,
             func: impl FnOnce(&mut Self) -> R,
         ) -> R {
             func(&mut Self::from_java(java, env))
@@ -25,7 +25,7 @@ mod basic;
 mod jni_ref;
 
 /// Main trait that converts between Java and Rust types.
-pub trait JavaConversion {
+pub trait JavaConversion<'env> {
     /// The Java type used for this Rust object.
     const JAVA_TYPE: Type<'static>;
 
@@ -33,17 +33,24 @@ pub trait JavaConversion {
     type JavaType;
 
     /// Convert the Rust type into a Java type.
-    fn to_java(&self, env: &JNIEnv) -> Self::JavaType;
+    fn to_java(&self, env: JNIEnv<'env>) -> Self::JavaType;
 
     /// Convert the Rust type into a Java method parameter.
-    fn to_java_value(&self, env: &JNIEnv) -> JValue;
+    fn to_java_value(&self, env: JNIEnv<'env>) -> JValue<'env>;
 
     /// Convert the Java type into an borrowed Rust type.
-    fn from_java_ref<R>(java: Self::JavaType, env: &JNIEnv, func: impl FnOnce(&Self) -> R) -> R;
+    fn from_java_ref<R>(
+        java: Self::JavaType,
+        env: JNIEnv<'env>,
+        func: impl FnOnce(&Self) -> R,
+    ) -> R;
 
     /// Convert the Java type into an mutably borrowed Rust type.
-    fn from_java_mut<R>(java: Self::JavaType, env: &JNIEnv, func: impl FnOnce(&mut Self) -> R)
-        -> R;
+    fn from_java_mut<R>(
+        java: Self::JavaType,
+        env: JNIEnv<'env>,
+        func: impl FnOnce(&mut Self) -> R,
+    ) -> R;
 
     /// Returns the closest thing to a null value in this type. Used as a return type for an JNI
     /// function after returning an exception.
@@ -51,10 +58,10 @@ pub trait JavaConversion {
 }
 
 /// Trait that allows converting Java types into owned Rust types.
-pub trait JavaConversionOwned: JavaConversion + Sized {
+pub trait JavaConversionOwned<'env>: JavaConversion<'env> + Sized {
     /// Convert the Java type into an owned Rust type.
-    fn from_java(java: Self::JavaType, env: &JNIEnv) -> Self;
+    fn from_java(java: Self::JavaType, env: JNIEnv<'env>) -> Self;
 
     /// Convert the Java return value into an owned Rust type.
-    fn from_java_value(java: JValue, env: &JNIEnv) -> Result<Self>;
+    fn from_java_value(java: JValue<'env>, env: JNIEnv<'env>) -> Result<Self>;
 }

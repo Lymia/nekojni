@@ -1,12 +1,12 @@
-use crate::{conversions::JavaConversionOwned, errors::*, java_class::JavaClass};
+use crate::{conversions::JavaConversionOwned, errors::*};
 use jni::{objects::JValue, JNIEnv};
 
-pub trait ImportReturnTy<'a> {
-    fn from_return_ty(from: &str, env: &'a JNIEnv, value: Result<JValue<'a>>) -> Self;
+pub trait ImportReturnTy<'env> {
+    fn from_return_ty(from: &str, env: JNIEnv<'env>, value: Result<JValue<'env>>) -> Self;
 }
 
-impl<'a, T: JavaConversionOwned> ImportReturnTy<'a> for T {
-    fn from_return_ty(from: &str, env: &'a JNIEnv, value: Result<JValue<'a>>) -> Self {
+impl<'env, T: JavaConversionOwned<'env>> ImportReturnTy<'env> for T {
+    fn from_return_ty(from: &str, env: JNIEnv<'env>, value: Result<JValue<'env>>) -> Self {
         match value {
             Ok(v) => match T::from_java_value(v, env) {
                 Ok(v) => v,
@@ -16,8 +16,8 @@ impl<'a, T: JavaConversionOwned> ImportReturnTy<'a> for T {
         }
     }
 }
-impl<'a, T: JavaConversionOwned> ImportReturnTy<'a> for Result<T> {
-    fn from_return_ty(_: &str, env: &'a JNIEnv, value: Result<JValue<'a>>) -> Self {
+impl<'env, T: JavaConversionOwned<'env>> ImportReturnTy<'env> for Result<T> {
+    fn from_return_ty(_: &str, env: JNIEnv<'env>, value: Result<JValue<'env>>) -> Self {
         T::from_java_value(value?, env)
     }
 }
