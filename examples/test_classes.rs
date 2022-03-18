@@ -1,3 +1,5 @@
+#![feature(arbitrary_self_types)]
+
 use jni::JNIEnv;
 use nekojni::*;
 
@@ -6,6 +8,7 @@ pub struct TestClass {
 }
 
 #[jni_export]
+#[jni(package = "moe.lymia.TestClass")]
 impl TestClass {
     pub extern "Java" fn test_func(self: &JniRef<Self>, a: u32, b: u32, c: u32) -> u32 {}
     pub extern "Java" fn test_func_2(self: &JniRef<Self>, a: u32) {}
@@ -18,7 +21,6 @@ impl TestClass {
         self.counter
     }
     pub fn increment_bar(self: &mut JniRef<Self>) -> u32 {
-        self.counter += 1;
         self.counter
     }
 }

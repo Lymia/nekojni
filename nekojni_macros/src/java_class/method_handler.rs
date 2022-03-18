@@ -166,7 +166,7 @@ fn method_wrapper_java(
         ),
         FuncSelfMode::Static => (
             quote!(env: impl #std::convert::AsRef<#jni::JNIEnv<'env>>),
-            quote!(*env.as_ref()),
+            quote!(env),
             quote!(<'env>),
         ),
 
@@ -235,10 +235,10 @@ fn method_wrapper_java(
         if self_mode == FuncSelfMode::Static {
             let wrapper_fn = components.gensym("wrapper_fn");
             body = quote! {
-                fn #wrapper_fn(env: &#jni::JNIEnv, #(#param_names: #param_types,)*) {
+                fn #wrapper_fn(env: #jni::JNIEnv, #(#param_names: #param_types,)*) {
                     #body
                 }
-                let env = #env;
+                let env = *env.as_ref();
                 #wrapper_fn(env, #(#param_names,)*)
             };
         }

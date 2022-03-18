@@ -20,7 +20,7 @@ impl<'env, T: JavaClass> JavaConversion<'env> for JniRef<'env, T> {
 }
 impl<'env, T: JavaClass> JavaConversionOwned<'env> for JniRef<'env, T> {
     fn from_java(java: Self::JavaType, env: JNIEnv<'env>) -> Self {
-        T::create_jni_ref(env, java)
+        T::create_jni_ref(env, java).unwrap()
     }
     fn from_java_value(java: JValue<'env>, env: JNIEnv<'env>) -> Result<Self> {
         if let JValue::Object(value) = java {

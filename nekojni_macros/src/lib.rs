@@ -3,6 +3,7 @@ mod utils;
 #[macro_use]
 mod errors;
 mod java_class;
+mod signatures;
 
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as SynTokenStream};

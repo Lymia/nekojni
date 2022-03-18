@@ -18,6 +18,7 @@ pub use return_ty::ImportReturnTy;
 
 pub use jni;
 pub use std;
+pub use parking_lot;
 
 pub mod jni_ref {
     pub use crate::java_class::jni_ref::{new_rust, new_wrapped};
@@ -37,7 +38,7 @@ pub trait JavaClassImpl: Sized + Send + Sync + 'static {
     fn default_ptr() -> &'static Self;
 
     /// Creates a new [`JniRef`] for this class.
-    fn create_jni_ref<'env>(env: JNIEnv<'env>, obj: JObject<'env>) -> JniRef<'env, Self>
+    fn create_jni_ref<'env>(env: JNIEnv<'env>, obj: JObject<'env>) -> Result<JniRef<'env, Self>>
     where Self: JavaClass;
 }
 
