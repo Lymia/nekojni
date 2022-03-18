@@ -1,4 +1,5 @@
-use jni::{sys::*, JNIEnv};
+use crate::errors::*;
+use jni::{objects::JValue, sys::*, JNIEnv};
 use nekojni_signatures::*;
 
 macro_rules! impl_borrowed_from_owned {
@@ -34,6 +35,9 @@ pub trait JavaConversion {
     /// Convert the Rust type into a Java type.
     fn to_java(&self, env: &JNIEnv) -> Self::JavaType;
 
+    /// Convert the Rust type into a Java method parameter.
+    fn to_java_value(&self, env: &JNIEnv) -> JValue;
+
     /// Convert the Java type into an borrowed Rust type.
     fn from_java_ref<R>(java: Self::JavaType, env: &JNIEnv, func: impl FnOnce(&Self) -> R) -> R;
 
@@ -47,7 +51,10 @@ pub trait JavaConversion {
 }
 
 /// Trait that allows converting Java types into owned Rust types.
-pub trait JavaConversionOwned: JavaConversion {
+pub trait JavaConversionOwned: JavaConversion + Sized {
     /// Convert the Java type into an owned Rust type.
     fn from_java(java: Self::JavaType, env: &JNIEnv) -> Self;
+
+    /// Convert the Java return value into an owned Rust type.
+    fn from_java_value(java: JValue, env: &JNIEnv) -> Result<Self>;
 }

@@ -1,6 +1,7 @@
 #![allow(deprecated)]
 
 use crate::{__macro_internals::CreateJniRef, conversions::*, JniRef};
+use jni::objects::JObject;
 
 impl<T: CreateJniRef> JavaConversion for JniRef<T> {
     const JAVA_TYPE: Type<'static> = T::JAVA_TYPE;
@@ -8,6 +9,9 @@ impl<T: CreateJniRef> JavaConversion for JniRef<T> {
 
     fn to_java(&self, _: &JNIEnv) -> Self::JavaType {
         JniRef::this(self)
+    }
+    fn to_java_value(&self, env: &JNIEnv) -> JValue {
+        JValue::Object(JObject::from(self.to_java(env)))
     }
 
     fn from_java_ref<R>(java: Self::JavaType, env: &JNIEnv, func: impl FnOnce(&Self) -> R) -> R {

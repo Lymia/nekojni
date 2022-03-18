@@ -1,7 +1,7 @@
 #![allow(deprecated)]
 
 use crate::{__macro_internals::RustContents, errors::*, java_class::*};
-use jni::{objects::JValue, sys};
+use jni::objects::JValue;
 use parking_lot::{
     lock_api::{ArcRwLockReadGuard, ArcRwLockWriteGuard},
     RawRwLock,
@@ -18,7 +18,7 @@ enum InnerRef<T> {
 pub struct JniRef<T: JavaClass> {
     this: jobject,
     inner: InnerRef<T>,
-    env: *mut sys::JNIEnv,
+    env: JNIEnv<'static>,
     jvm: T::JvmInterface,
 }
 impl<T: JavaClass> JniRef<T> {
@@ -28,8 +28,8 @@ impl<T: JavaClass> JniRef<T> {
     }
 
     /// Returns the [`JNIEnv`] associated with this pointer.
-    pub fn env(this: &Self) -> JNIEnv {
-        unsafe { JNIEnv::from_raw(this.env).unwrap() }
+    pub fn env(this: &Self) -> &JNIEnv {
+        &this.env
     }
 
     /// Returns the JvmInterface associated with this pointer.
@@ -62,6 +62,12 @@ where T: RustContents
     }
 }
 
+impl<'a, T: JavaClass> AsRef<JNIEnv<'a>> for &'a JniRef<T> {
+    fn as_ref(&self) -> &JNIEnv<'a> {
+        JniRef::env(self)
+    }
+}
+
 /// Creates a new [`JniRef`] from a JNI environment and a java object containing an ID.
 pub unsafe fn new<T: RustContents>(env: &JNIEnv, this: jobject, is_mut: bool) -> Result<JniRef<T>> {
     let id = match env.get_field(this, T::ID_FIELD, "I")? {
@@ -78,7 +84,7 @@ pub unsafe fn new<T: RustContents>(env: &JNIEnv, this: jobject, is_mut: bool) ->
     Ok(JniRef {
         this,
         inner,
-        env: env.get_native_interface(),
+        env: { JNIEnv::from_raw(env.get_native_interface())? },
         jvm,
     })
 }
@@ -88,7 +94,7 @@ pub unsafe fn new_wrapped<T: JavaClass>(env: &JNIEnv, this: jobject) -> Result<J
     Ok(JniRef {
         this,
         inner: InnerRef::None,
-        env: env.get_native_interface(),
+        env: { JNIEnv::from_raw(env.get_native_interface())? },
         jvm: T::create_interface(env, this)?,
     })
 }

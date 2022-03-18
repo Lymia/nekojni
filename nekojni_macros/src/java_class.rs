@@ -1,20 +1,30 @@
 use crate::{errors::*, utils::*, MacroCtx, SynTokenStream};
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{
     parse2, spanned::Spanned, FnArg, GenericArgument, ImplItem, ImplItemMethod, ItemImpl, Pat,
-    PatType, PathArguments, PathSegment, Signature, Type,
+    PatType, PathArguments, PathSegment, ReturnType, Signature, Type,
 };
 
 #[derive(Default)]
 struct JavaClassComponents {
+    sym_uid: usize,
     wrapper_funcs: SynTokenStream,
 }
+impl JavaClassComponents {
+    fn gensym(&mut self, prefix: &str) -> Ident {
+        let ident = ident!("{}_{}", prefix, self.sym_uid);
+        self.sym_uid += 1;
+        ident
+    }
+}
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum FuncSelfMode {
-    InstanceRef,
-    InstanceMut,
+    SelfRef,
+    SelfMut,
+    EnvRef,
+    EnvMut,
     Static,
 }
 
@@ -24,13 +34,22 @@ enum FuncArgMode {
     ParamRef(Type),
     ParamMut(Type),
 }
+impl FuncArgMode {
+    fn ty(&self) -> &Type {
+        match self {
+            FuncArgMode::ParamOwned(ty) => ty,
+            FuncArgMode::ParamRef(ty) => ty,
+            FuncArgMode::ParamMut(ty) => ty,
+        }
+    }
+}
 
 #[derive(Debug)]
 enum FuncArg {
-    DirectSelfRef,
-    DirectSelfMut,
-    TypedSelfRef,
-    TypedSelfMut,
+    SelfRef,
+    SelfMut,
+    EnvRef,
+    EnvMut,
     ParamOwned(Type),
     ParamRef(Type),
     ParamMut(Type),
@@ -55,9 +74,9 @@ impl FuncArg {
         match tp {
             Type::Reference(ref_tp) => {
                 if ref_tp.mutability.is_some() {
-                    Ok(FuncArg::TypedSelfMut)
+                    Ok(FuncArg::EnvMut)
                 } else {
-                    Ok(FuncArg::TypedSelfRef)
+                    Ok(FuncArg::EnvRef)
                 }
             }
             Type::Paren(paren) => Self::check_any_type(&paren.elem),
@@ -72,9 +91,9 @@ impl FuncArg {
                 if receiver.reference.is_none() {
                     error(param.span(), "JNI functions may not take `self` by value.")
                 } else if receiver.mutability.is_some() {
-                    Ok(FuncArg::DirectSelfMut)
+                    Ok(FuncArg::SelfMut)
                 } else {
-                    Ok(FuncArg::DirectSelfRef)
+                    Ok(FuncArg::SelfRef)
                 }
             }
             FnArg::Typed(ty) => match &*ty.pat {
@@ -105,16 +124,10 @@ fn process_method_args(
         let arg = FuncArg::from_param(param)?;
         if is_first {
             match arg {
-                FuncArg::DirectSelfRef => {
-                    *param = parse2(quote!(self: &#nekojni::java_class::JniRef<Self>))?;
-                    self_mode = FuncSelfMode::InstanceRef;
-                }
-                FuncArg::DirectSelfMut => {
-                    *param = parse2(quote!(self: &mut #nekojni::java_class::JniRef<Self>))?;
-                    self_mode = FuncSelfMode::InstanceMut;
-                }
-                FuncArg::TypedSelfRef => self_mode = FuncSelfMode::InstanceRef,
-                FuncArg::TypedSelfMut => self_mode = FuncSelfMode::InstanceMut,
+                FuncArg::SelfRef => self_mode = FuncSelfMode::SelfRef,
+                FuncArg::SelfMut => self_mode = FuncSelfMode::SelfMut,
+                FuncArg::EnvRef => self_mode = FuncSelfMode::EnvRef,
+                FuncArg::EnvMut => self_mode = FuncSelfMode::EnvMut,
                 FuncArg::ParamOwned(_) | FuncArg::ParamMut(_) => error(
                     param.span(),
                     "static methods must have &JNIEnv as the first arg",
@@ -123,10 +136,9 @@ fn process_method_args(
             }
         } else {
             match arg {
-                FuncArg::DirectSelfRef
-                | FuncArg::DirectSelfMut
-                | FuncArg::TypedSelfRef
-                | FuncArg::TypedSelfMut => error(param.span(), "self arg after first argument??")?,
+                FuncArg::SelfRef | FuncArg::SelfMut | FuncArg::EnvRef | FuncArg::EnvMut => {
+                    error(param.span(), "self arg after first argument??")?
+                }
                 FuncArg::ParamOwned(ty) => args.push(FuncArgMode::ParamOwned(ty)),
                 FuncArg::ParamRef(ty) => args.push(FuncArgMode::ParamRef(ty)),
                 FuncArg::ParamMut(ty) => args.push(FuncArgMode::ParamMut(ty)),
@@ -143,15 +155,102 @@ fn method_wrapper_java(
     components: &mut JavaClassComponents,
     item: &mut ImplItemMethod,
 ) -> Result<()> {
-    item.sig.abi = None;
-
     if !item.block.stmts.is_empty() {
         error(
             item.block.span(),
             "extern \"Java\" functions must have an empty body.",
         )?;
     }
-    let args = process_method_args(ctx, &mut item.sig)?;
+    let (self_mode, args) = process_method_args(ctx, &mut item.sig)?;
+    if self_mode == FuncSelfMode::EnvMut {
+        error(
+            item.sig.inputs.span(),
+            "extern \"Java\" functions should not take self mutably.",
+        )?;
+    }
+
+    let nekojni = &ctx.nekojni;
+    let nekojni_internal = &ctx.internal;
+    let std = &ctx.std;
+    let jni = &ctx.jni;
+
+    let (self_param, env, lt) = match self_mode {
+        FuncSelfMode::EnvRef => (
+            quote!(self: &#nekojni::JniRef<Self>),
+            quote!(#nekojni::JniRef::env(self)),
+            quote!(),
+        ),
+        FuncSelfMode::Static => (
+            quote!(env: impl #std::convert::AsRef<#jni::JNIEnv<'envlt>>),
+            quote!(env.as_ref()),
+            quote!(<'envlt>),
+        ),
+
+        FuncSelfMode::SelfRef => error(
+            item.sig.inputs.span(),
+            "extern \"Java\" functions must take self as a `JniRef`.",
+        )?,
+        FuncSelfMode::SelfMut | FuncSelfMode::EnvMut => error(
+            item.sig.inputs.span(),
+            "extern \"Java\" functions should not take self mutably.",
+        )?,
+    };
+
+    // Rewrite the function to be a proper proxy to Java code.
+    let new_method = {
+        let mut param_types: Vec<_> = args.iter().map(FuncArgMode::ty).collect();
+
+        let mut param_names = Vec::new();
+        let mut param_conversion = SynTokenStream::new();
+        for arg in &args {
+            let in_name = components.gensym("in");
+            let java_name = components.gensym("java");
+            let ty = arg.ty();
+
+            let in_arg = match arg {
+                FuncArgMode::ParamOwned(_) => quote!(&#in_name),
+                FuncArgMode::ParamRef(_) => quote!(#in_name),
+                FuncArgMode::ParamMut(_) => quote!(#in_name),
+            };
+
+            param_conversion.extend(quote! {
+                let #java_name = <#ty as #nekojni::conversions::JavaConversion>::to_java(
+                    #in_arg, &env,
+                );
+            });
+            param_names.push(in_name);
+        }
+
+        let mut body = quote! {
+            const PARAMS: &'static [#nekojni::signatures::Type<'static>] = &[
+                #(<#param_types as #nekojni::conversions::JavaConversion>::JAVA_TYPE,)*
+            ];
+
+            let env = #env;
+            #param_conversion
+        };
+        if self_mode == FuncSelfMode::Static {
+            let wrapper_fn = components.gensym("wrapper_fn");
+            body = quote! {
+                fn #wrapper_fn(env: &#jni::JNIEnv, #(#param_names: #param_types,)*) {
+                    #body
+                }
+                let env = #env;
+                #wrapper_fn(env, #(#param_names,)*)
+            };
+        }
+        parse2::<ImplItemMethod>(quote! {
+            fn func #lt(#self_param, #(#param_names: #param_types,)*) {
+                #body
+            }
+        })?
+    };
+
+    item.sig.abi = None;
+    item.sig.generics = new_method.sig.generics;
+    item.sig.inputs = new_method.sig.inputs;
+    item.block = new_method.block;
+    components.wrapper_funcs.extend(quote! {});
 
     Ok(())
 }
@@ -173,6 +272,12 @@ fn method_wrapper(
     components: &mut JavaClassComponents,
     item: &mut ImplItemMethod,
 ) -> Result<()> {
+    if item.sig.generics.params.iter().next().is_some() {
+        error(
+            item.sig.generics.span(),
+            "`#[jni_exports]` may not contain generic functions.",
+        )?;
+    }
     if let Some(abi) = &item.sig.abi {
         if let Some(abi) = &abi.name {
             let abi = abi.value();

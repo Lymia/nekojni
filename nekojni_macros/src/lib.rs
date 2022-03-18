@@ -13,6 +13,7 @@ struct MacroCtx {
     nekojni: SynTokenStream,
     internal: SynTokenStream,
     std: SynTokenStream,
+    jni: SynTokenStream,
 }
 impl MacroCtx {
     fn new() -> errors::Result<Self> {
@@ -24,6 +25,7 @@ impl MacroCtx {
             nekojni: quote!( #crate_name ),
             internal: quote!( #crate_name::__macro_internals ),
             std: quote!( #crate_name::__macro_internals::std ),
+            jni: quote!( #crate_name::__macro_internals::jni ),
         })
     }
 }
