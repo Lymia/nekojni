@@ -6,6 +6,8 @@ pub struct TestClass {
 
 #[jni_export]
 impl TestClass {
+    pub extern "Java" fn test_func(&mut self) -> usize {}
+
     pub fn increment_foo(&mut self) -> usize {
         self.counter += 1;
         self.counter

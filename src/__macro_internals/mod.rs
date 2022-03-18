@@ -1,4 +1,5 @@
 mod object_id;
+mod once;
 
 use crate::{
     errors::*,
@@ -11,6 +12,7 @@ use parking_lot::RwLock;
 
 pub use crate::{globals::set_default_exception_class, panicking::catch_panic_jni};
 pub use object_id::IdManager;
+pub use once::SignatureCache;
 
 pub use std;
 

@@ -18,12 +18,7 @@ impl MacroCtx {
     fn new() -> errors::Result<Self> {
         let crate_name = match proc_macro_crate::crate_name("nekojni") {
             Ok(FoundCrate::Name(v)) => ident!("{}", v),
-            _ => {
-                return utils::error(
-                    Span::call_site(),
-                    "Cannot locate name of the nekojni crate.",
-                )
-            }
+            _ => ident!("nekojni"), // This is likely an example.
         };
         Ok(MacroCtx {
             nekojni: quote!( #crate_name ),
