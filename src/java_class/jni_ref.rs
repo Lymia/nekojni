@@ -1,17 +1,12 @@
 #![allow(deprecated)]
 
-use crate::{__macro_internals::IdManager, errors::*, java_class::*};
-use jni::objects::JValue;
+use crate::{__macro_internals::RustContents, errors::*, java_class::*};
+use jni::{objects::JValue, sys};
 use parking_lot::{
     lock_api::{ArcRwLockReadGuard, ArcRwLockWriteGuard},
-    RawRwLock, RwLock,
+    RawRwLock,
 };
 use std::ops::{Deref, DerefMut};
-
-pub trait RustContents: Sized + Send + Sync + 'static {
-    const ID_FIELD: &'static str;
-    fn get_manager() -> &'static IdManager<RwLock<Self>>;
-}
 
 enum InnerRef<T> {
     None,
@@ -20,41 +15,21 @@ enum InnerRef<T> {
 }
 
 /// A pointer type holding a JNI environment and a an exported object.
-pub struct JniRef<'a, T: JavaClass> {
+pub struct JniRef<T: JavaClass> {
+    this: jobject,
     inner: InnerRef<T>,
-    env: &'a JNIEnv<'a>,
+    env: *mut sys::JNIEnv,
     jvm: T::JvmInterface,
 }
-impl<'a, T: JavaClass> JniRef<'a, T> {
-    /// Creates a new [`JniRef`] from a JNI environment and a java object containing an ID.
-    pub fn new(env: &'a JNIEnv<'a>, this: jobject, is_mut: bool) -> Result<Self>
-    where T: RustContents {
-        let id = match env.get_field(this, T::ID_FIELD, "I")? {
-            JValue::Int(i) => i as u32,
-            _ => unreachable!(),
-        };
-        let jvm = T::create_interface(env, this)?;
-        let lock = T::get_manager().get(id)?;
-        let inner = if is_mut {
-            InnerRef::Mutable(lock.write_arc())
-        } else {
-            InnerRef::Immutable(lock.read_arc())
-        };
-        Ok(JniRef { inner, env, jvm })
-    }
-
-    /// Creates a new [`JniRef`] from a JNI environment and a java object.
-    pub fn new_wrapped(env: &'a JNIEnv<'a>, this: jobject) -> Result<Self> {
-        Ok(JniRef {
-            inner: InnerRef::None,
-            env,
-            jvm: T::create_interface(env, this)?,
-        })
+impl<T: JavaClass> JniRef<T> {
+    /// Returns the raw [`jobject`] associated with this pointer.
+    pub(crate) fn this(this: &Self) -> jobject {
+        this.this
     }
 
     /// Returns the [`JNIEnv`] associated with this pointer.
-    pub fn env(this: &Self) -> &'a JNIEnv {
-        this.env
+    pub fn env(this: &Self) -> JNIEnv {
+        unsafe { JNIEnv::from_raw(this.env).unwrap() }
     }
 
     /// Returns the JvmInterface associated with this pointer.
@@ -63,7 +38,7 @@ impl<'a, T: JavaClass> JniRef<'a, T> {
     }
 }
 
-impl<'a, 'b: 'a, T: JavaClass> Deref for JniRef<'a, T>
+impl<T: JavaClass> Deref for JniRef<T>
 where T: RustContents
 {
     type Target = T;
@@ -75,7 +50,7 @@ where T: RustContents
         }
     }
 }
-impl<'a, 'b: 'a, T: JavaClass> DerefMut for JniRef<'a, T>
+impl<T: JavaClass> DerefMut for JniRef<T>
 where T: RustContents
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
@@ -85,6 +60,37 @@ where T: RustContents
             InnerRef::None => none_fail(),
         }
     }
+}
+
+/// Creates a new [`JniRef`] from a JNI environment and a java object containing an ID.
+pub unsafe fn new<T: RustContents>(env: &JNIEnv, this: jobject, is_mut: bool) -> Result<JniRef<T>> {
+    let id = match env.get_field(this, T::ID_FIELD, "I")? {
+        JValue::Int(i) => i as u32,
+        _ => unreachable!(),
+    };
+    let jvm = T::create_interface(env, this)?;
+    let lock = T::get_manager().get(id)?;
+    let inner = if is_mut {
+        InnerRef::Mutable(lock.write_arc())
+    } else {
+        InnerRef::Immutable(lock.read_arc())
+    };
+    Ok(JniRef {
+        this,
+        inner,
+        env: env.get_native_interface(),
+        jvm,
+    })
+}
+
+/// Creates a new [`JniRef`] from a JNI environment and a java object.
+pub unsafe fn new_wrapped<T: JavaClass>(env: &JNIEnv, this: jobject) -> Result<JniRef<T>> {
+    Ok(JniRef {
+        this,
+        inner: InnerRef::None,
+        env: env.get_native_interface(),
+        jvm: T::create_interface(env, this)?,
+    })
 }
 
 #[inline(never)]

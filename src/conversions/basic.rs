@@ -3,37 +3,45 @@ use super::*;
 impl JavaConversion for bool {
     const JAVA_TYPE: Type<'static> = Type::Boolean;
     type JavaType = jboolean;
-    fn into_java(self, _env: &JNIEnv) -> Self::JavaType {
-        self as u8
+    fn to_java(&self, _env: &JNIEnv) -> Self::JavaType {
+        *self as u8
     }
-    fn from_java(java: Self::JavaType, _env: &JNIEnv) -> Self {
-        java != 0
-    }
+    impl_borrowed_from_owned!();
     fn null() -> Self::JavaType {
         0
     }
 }
+impl JavaConversionOwned for bool {
+    fn from_java(java: Self::JavaType, _: &JNIEnv) -> Self {
+        java != 0
+    }
+}
+
 impl JavaConversion for String {
     const JAVA_TYPE: Type<'static> = Type::class(&["java", "lang"], "String");
     type JavaType = jstring;
-    fn into_java(self, env: &JNIEnv) -> Self::JavaType {
+    fn to_java(&self, env: &JNIEnv) -> Self::JavaType {
         env.new_string(self)
             .expect("could not convert jstring->String")
             .into_inner()
     }
+    impl_borrowed_from_owned!();
+    fn null() -> Self::JavaType {
+        std::ptr::null_mut()
+    }
+}
+impl JavaConversionOwned for String {
     fn from_java(java: Self::JavaType, env: &JNIEnv) -> Self {
         env.get_string(java.into())
             .expect("could not convert String->jstring")
             .into()
     }
-    fn null() -> Self::JavaType {
-        std::ptr::null_mut()
-    }
 }
+
 impl JavaConversion for Vec<u8> {
     const JAVA_TYPE: Type<'static> = Type::Boolean.array();
     type JavaType = jbyteArray;
-    fn into_java(self, env: &JNIEnv) -> Self::JavaType {
+    fn to_java(&self, env: &JNIEnv) -> Self::JavaType {
         assert!(self.len() < jint::MAX as usize);
         let array = env
             .new_byte_array(self.len() as i32)
@@ -42,14 +50,17 @@ impl JavaConversion for Vec<u8> {
             .expect("Failed to copy data into byte array.");
         array
     }
+    impl_borrowed_from_owned!();
+    fn null() -> Self::JavaType {
+        std::ptr::null_mut()
+    }
+}
+impl JavaConversionOwned for Vec<u8> {
     fn from_java(java: Self::JavaType, env: &JNIEnv) -> Self {
         let mut new_vec = vec![0u8; env.get_array_length(java).unwrap() as usize];
         env.get_byte_array_region(java, 0, bytemuck::cast_slice_mut(new_vec.as_mut_slice()))
             .unwrap();
         new_vec
-    }
-    fn null() -> Self::JavaType {
-        std::ptr::null_mut()
     }
 }
 
@@ -58,14 +69,17 @@ macro_rules! simple_conversion {
         impl JavaConversion for $rust_ty {
             const JAVA_TYPE: Type<'static> = $java_ty;
             type JavaType = $jni_ty;
-            fn into_java(self, _env: &JNIEnv) -> Self::JavaType {
-                self
+            fn to_java(&self, _env: &JNIEnv) -> Self::JavaType {
+                *self
             }
-            fn from_java(java: Self::JavaType, _env: &JNIEnv) -> Self {
-                java
-            }
+            impl_borrowed_from_owned!();
             fn null() -> Self::JavaType {
                 $default
+            }
+        }
+        impl JavaConversionOwned for $rust_ty {
+            fn from_java(java: Self::JavaType, _env: &JNIEnv) -> Self {
+                java
             }
         }
     )*}
@@ -80,22 +94,26 @@ macro_rules! numeric_conversion {
         impl JavaConversion for $rust_ty {
             const JAVA_TYPE: Type<'static> = $java_ty;
             type JavaType = $jni_ty;
-            fn into_java(self, _env: &JNIEnv) -> Self::JavaType {
+            fn to_java(&self, _env: &JNIEnv) -> Self::JavaType {
+                let val = *self;
                 assert!(
-                    <$rust_ty>::MAX != 0 || self <= <$jni_ty>::MAX as $rust_ty,
+                    <$rust_ty>::MAX != 0 || val <= <$jni_ty>::MAX as $rust_ty,
                     concat!(stringify!($rust_ty), " too large to convert to ", stringify!($jni_ty))
                 );
-                self as $jni_ty
+                val as $jni_ty
             }
+            impl_borrowed_from_owned!();
+            fn null() -> Self::JavaType {
+                0
+            }
+        }
+        impl JavaConversionOwned for $rust_ty {
             fn from_java(java: Self::JavaType, _env: &JNIEnv) -> Self {
                 assert!(
                     <$rust_ty>::MAX != 0 || java < 0,
                     concat!(stringify!($rust_ty), " cannot be negative")
                 );
                 java as $rust_ty
-            }
-            fn null() -> Self::JavaType {
-                0
             }
         }
     )*}

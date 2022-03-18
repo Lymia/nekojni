@@ -1,4 +1,4 @@
-use crate::{errors::*, JavaConversion};
+use crate::{conversions::JavaConversion, errors::*};
 use jni::JNIEnv;
 use std::{any::Any, panic::AssertUnwindSafe};
 
@@ -95,7 +95,7 @@ pub fn catch_panic_jni<T: JavaConversion, R: MethodReturn<T>>(
                 check_fail(env.emit_error(env, exception_class));
                 T::null()
             } else {
-                result.into_inner().into_java(env)
+                result.into_inner().to_java(env)
             }
         }) {
             Ok(v) => v,

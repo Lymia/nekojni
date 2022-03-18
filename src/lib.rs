@@ -10,10 +10,9 @@ mod errors;
 #[doc(hidden)]
 pub mod __macro_internals;
 
-mod conversions;
+mod globals;
 mod panicking;
 
-pub use conversions::*;
 pub use errors::{Error, Result};
 pub use java_class::JniRef;
 
@@ -21,9 +20,11 @@ pub use java_class::JniRef;
 #[cfg(feature = "codegen")]
 pub mod codegen;
 
+/// The module containing the types used for conversions between Java and Rust types.
+pub mod conversions;
+
 /// The module contains code relating to the representation of types exported from Java.
 pub mod java_class;
-mod globals;
 
 #[doc(inline)]
 /// The module containing types that represent Java type signatures.
@@ -36,7 +37,5 @@ pub use nekojni_macros::*;
 macro_rules! jni_init {
     (
 
-    ) => {
-
-    };
+    ) => {};
 }
