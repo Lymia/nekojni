@@ -36,13 +36,13 @@ enum InnerRef<T> {
 }
 
 /// A pointer type holding a JNI environment and a an exported object.
-pub struct JniRef<'env, T: JavaClass, R: JniRefType = JniRefRead> {
+pub struct JniRef<'env, T: JavaClass<'env>, R: JniRefType = JniRefRead> {
     this: JObject<'env>,
     inner: InnerRef<T>,
     env: JNIEnv<'env>,
     phantom: PhantomData<R>,
 }
-impl<'env, T: JavaClass, R: JniRefType> JniRef<'env, T, R> {
+impl<'env, T: JavaClass<'env>, R: JniRefType> JniRef<'env, T, R> {
     /// Returns the underlying [`JObject`] associated with this pointer.
     pub fn this(this: &Self) -> JObject<'env> {
         this.this
@@ -54,7 +54,7 @@ impl<'env, T: JavaClass, R: JniRefType> JniRef<'env, T, R> {
     }
 }
 
-impl<'env, T: JavaClass> JniRef<'env, T> {
+impl<'env, T: JavaClass<'env>> JniRef<'env, T> {
     /// Upgrades this [`JniRef`] into a [`JniRefMut`]. As this requires an owning reference, this
     /// may only be used in practice with references returned from Java functions.
     pub fn upgrade(self) -> JniRefMut<'env, T> {
@@ -75,7 +75,7 @@ impl<'env, T: JavaClass> JniRef<'env, T> {
     }
 }
 
-impl<'env, T: JavaClass, R: JniRefType> Deref for JniRef<'env, T, R> {
+impl<'env, T: JavaClass<'env>, R: JniRefType> Deref for JniRef<'env, T, R> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         match &self.inner {
@@ -85,7 +85,7 @@ impl<'env, T: JavaClass, R: JniRefType> Deref for JniRef<'env, T, R> {
         }
     }
 }
-impl<'env, T: JavaClass> DerefMut for JniRef<'env, T, JniRefWrite> {
+impl<'env, T: JavaClass<'env>> DerefMut for JniRef<'env, T, JniRefWrite> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match &mut self.inner {
             InnerRef::Default => mut_ptr_fail(),
@@ -95,14 +95,14 @@ impl<'env, T: JavaClass> DerefMut for JniRef<'env, T, JniRefWrite> {
     }
 }
 
-impl<'a, 'env: 'a, T: JavaClass> AsRef<JNIEnv<'env>> for &'a JniRef<'env, T> {
+impl<'a, 'env: 'a, T: JavaClass<'env>> AsRef<JNIEnv<'env>> for &'a JniRef<'env, T> {
     fn as_ref(&self) -> &JNIEnv<'env> {
         &self.env
     }
 }
 
 /// Creates a new [`JniRef`] from a JNI environment and a java object containing an ID.
-pub fn new_rust<'env, T: RustContents>(
+pub fn new_rust<'env, T: RustContents<'env>>(
     env: JNIEnv<'env>,
     this: JObject<'env>,
 ) -> Result<JniRef<'env, T>> {
@@ -121,7 +121,7 @@ pub fn new_rust<'env, T: RustContents>(
 }
 
 /// Creates a new [`JniRef`] from a JNI environment and a java object.
-pub fn new_wrapped<'env, T: JavaClass>(
+pub fn new_wrapped<'env, T: JavaClass<'env>>(
     env: JNIEnv<'env>,
     this: JObject<'env>,
 ) -> Result<JniRef<'env, T>> {

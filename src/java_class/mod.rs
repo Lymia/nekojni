@@ -8,4 +8,4 @@ use jni::JNIEnv;
 
 /// A trait representing a Java class.
 #[allow(deprecated)]
-pub trait JavaClass: crate::__macro_internals::JavaClassImpl {}
+pub trait JavaClass<'env>: crate::__macro_internals::JavaClassImpl<'env> {}
