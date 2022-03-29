@@ -1,0 +1,11 @@
+[package]
+name = "nekojni_codegen"
+version = "0.1.0"
+authors = ["Lymia Aluysia <lymia@lymia.moe>"]
+edition = "2021"
+
+description = "This is an internal crate used by nekojni, and is not public API."
+
+[dependencies]
+nekojni_classfile = { version = "0.1.0", path = "../nekojni_classfile" }
+nekojni_signatures = { version = "0.1.0", path = "../nekojni_signatures" }

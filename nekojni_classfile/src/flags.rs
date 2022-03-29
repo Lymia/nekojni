@@ -1,7 +1,7 @@
 use enumset::EnumSetType;
 
 #[derive(EnumSetType, Debug)]
-pub enum ClassAccessFlags {
+pub enum CFlags {
     Public = 0,
     Final = 4,
     Super = 5,
@@ -13,7 +13,7 @@ pub enum ClassAccessFlags {
 }
 
 #[derive(EnumSetType, Debug)]
-pub enum FieldAccessFlags {
+pub enum FFlags {
     Public = 0,
     Private = 1,
     Protected = 2,
@@ -26,7 +26,7 @@ pub enum FieldAccessFlags {
 }
 
 #[derive(EnumSetType, Debug)]
-pub enum MethodAccessFlags {
+pub enum MFlags {
     Public = 0,
     Private = 1,
     Protected = 2,

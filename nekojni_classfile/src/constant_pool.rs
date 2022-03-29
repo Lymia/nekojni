@@ -165,29 +165,33 @@ impl PoolWriter {
         let contents = self.utf8(&v.display_jni().to_string());
         self.entry(PoolEntry::Class(contents))
     }
+    pub fn class_str(&mut self, v: &str) -> PoolId {
+        let contents = self.utf8(&v);
+        self.entry(PoolEntry::Class(contents))
+    }
     pub fn string(&mut self, str: &str) -> PoolId {
         let contents = self.utf8(str);
         self.entry(PoolEntry::String(contents))
     }
-    pub fn field_ref(&mut self, cl: &ClassName, name: &str, ty: &Type) -> PoolId {
-        let class = self.class(cl);
-        let name_and_type = self.name_and_type(name, &ty.display_jni().to_string());
+    pub fn field_ref_str(&mut self, cl: &str, name: &str, ty: &str) -> PoolId {
+        let class = self.class_str(cl);
+        let name_and_type = self.name_and_type(name, &ty);
         self.entry(PoolEntry::FieldRef {
             class_index: class,
             name_and_type_index: name_and_type,
         })
     }
-    pub fn method_ref(&mut self, cl: &ClassName, name: &str, ty: &MethodSig) -> PoolId {
-        let class = self.class(cl);
-        let name_and_type = self.name_and_type(name, &ty.display_jni().to_string());
+    pub fn method_ref_str(&mut self, cl: &str, name: &str, ty: &str) -> PoolId {
+        let class = self.class_str(cl);
+        let name_and_type = self.name_and_type(name, &ty);
         self.entry(PoolEntry::MethodRef {
             class_index: class,
             name_and_type_index: name_and_type,
         })
     }
-    pub fn interface_method_ref(&mut self, cl: &ClassName, name: &str, ty: &MethodSig) -> PoolId {
-        let class = self.class(cl);
-        let name_and_type = self.name_and_type(name, &ty.display_jni().to_string());
+    pub fn interface_method_ref_str(&mut self, cl: &str, name: &str, ty: &str) -> PoolId {
+        let class = self.class_str(cl);
+        let name_and_type = self.name_and_type(name, &ty);
         self.entry(PoolEntry::InterfaceMethodRef {
             class_index: class,
             name_and_type_index: name_and_type,
