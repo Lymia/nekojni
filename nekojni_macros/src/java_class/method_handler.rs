@@ -207,7 +207,7 @@ fn method_wrapper_java(
         )?,
     };
 
-    // Rewrite the function to be a proper proxy to Java code.
+    // Parse the type signature of the function.
     let mut param_types: Vec<_> = args.iter().map(FuncArgMode::ty).collect();
 
     let mut param_names = Vec::new();
@@ -236,6 +236,20 @@ fn method_wrapper_java(
         ReturnType::Type(_, ty) => quote_spanned! { output_span => #ty },
     };
 
+    // Generate the body of the function
+    let cache_field_name = components.gensym("cached_method_id");
+    if self_mode == FuncSelfMode::Static {
+        components.generated_exports.extend(quote_spanned! { item_span =>
+            #cache_field_name: #nekojni_internal::OnceCache<#jni::objects::JStaticMethodID<'env>>,
+        });
+    } else {
+        components
+            .generated_exports
+            .extend(quote_spanned! { item_span =>
+                #cache_field_name: #nekojni_internal::OnceCache<#jni::objects::JMethodID<'env>>,
+            });
+    }
+
     let mut body = quote_spanned! { item_span =>
         const PARAMS: &'static [#nekojni::signatures::Type<'static>] = &[
             #(<#param_types as #nekojni::conversions::JavaConversion>::JAVA_TYPE,)*
@@ -248,14 +262,23 @@ fn method_wrapper_java(
                 params: #nekojni::signatures::StaticList::Borrowed(PARAMS),
             };
 
-        static SIGNATURE_CACHE: #nekojni_internal::JNIStrCache =
-            #nekojni_internal::JNIStrCache::new();
-
         let env = #env;
         #param_conversion
+
+        static JNI_RET_CACHE: #nekojni_internal::OnceCache<#jni::signature::JavaType> =
+            #nekojni_internal::OnceCache::new();
+        static SIGNATURE_CACHE: #nekojni_internal::OnceCache<#jni::strings::JNIString> =
+            #nekojni_internal::OnceCache::new();
+
+        let jni_ret_cache = JNI_RET_CACHE.init(|| {
+            SIGNATURE.ret_ty.into()
+        });
         let signature_name = SIGNATURE_CACHE.init(|| {
             SIGNATURE.display_jni().to_string().into()
         });
+
+        let cache = #nekojni_internal::jni_ref::get_cache(&env);
+
         todo!()
     };
     if self_mode == FuncSelfMode::Static {

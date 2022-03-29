@@ -1,5 +1,5 @@
 [package]
-name = "nekojni_signatures"
+name = "nekojni_classfile"
 version = "0.1.0"
 authors = ["Lymia Aluysia <lymia@lymia.moe>"]
 edition = "2021"
@@ -7,7 +7,7 @@ edition = "2021"
 description = "This is an internal crate used by nekojni, and is not public API."
 
 [dependencies]
-jni = { version = "0.19", optional = true }
-pest = "2.1.3"
-pest_consume = "1.1.1"
-pest_derive = "2.1.0"
+byteorder = "1.4.3"
+cesu8 = "1.1.0"
+enumset = "1.0.8"
+nekojni_signatures = { version = "0.1.0", path = "../nekojni_signatures" }

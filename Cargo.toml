@@ -10,6 +10,7 @@ codegen = []
 
 [dependencies]
 bytemuck = "1.8.0"
+chashmap = "2.2.2"
 jni = "0.19"
 parking_lot = { version = "0.12.0", features = ["nightly", "arc_lock"] }
 thiserror = "1.0.30"
@@ -18,4 +19,4 @@ nekojni_macros = { version = "0.1.0", path = "nekojni_macros" }
 nekojni_signatures = { version = "0.1.0", path = "nekojni_signatures", features = ["jni"] }
 
 [workspace]
-members = ["nekojni_macros", "nekojni_signatures"]
+members = ["nekojni_classfile", "nekojni_macros", "nekojni_signatures"]

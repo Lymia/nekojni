@@ -25,4 +25,6 @@ impl TestClass {
     }
 }
 
+jni_module!(JniModule, "moe.lymia.JniModule");
+
 fn main() {}

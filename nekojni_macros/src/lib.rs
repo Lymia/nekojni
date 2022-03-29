@@ -9,6 +9,12 @@ use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as SynTokenStream};
 use proc_macro_crate::{Error, FoundCrate};
 use quote::quote;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+fn chain_next() -> usize {
+    static CHAIN_COUNT: AtomicUsize = AtomicUsize::new(0);
+    CHAIN_COUNT.fetch_add(1, Ordering::SeqCst)
+}
 
 struct MacroCtx {
     nekojni: SynTokenStream,

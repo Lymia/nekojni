@@ -5,7 +5,7 @@ use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as SynTokenStream};
 use quote::*;
 use std::fmt::Display;
-use syn::*;
+use syn::{spanned::Spanned, *};
 
 /// Creates an identifier with a format-like syntax.
 macro_rules! ident {
@@ -124,4 +124,28 @@ pub fn stream_span(attr: SynTokenStream) -> Span {
     let head_span = attr.clone().into_iter().next().unwrap().span();
     let tail_span = attr.into_iter().last().unwrap().span();
     head_span.join(tail_span).unwrap()
+}
+
+pub fn parse_rustdoc(doc: &[Attribute]) -> Result<Option<String>> {
+    let mut str = String::new();
+    for attr in doc {
+        if attr.path.segments.len() == 1 {
+            if last_path_segment(&attr.path) == "doc" {
+                match attr.parse_meta()? {
+                    Meta::Path(_) | Meta::List(_) => {
+                        error(attr.span(), "Could not parse `#[doc]` attribute.")?
+                    }
+                    Meta::NameValue(val) => match &val.lit {
+                        Lit::Str(s) => str.push_str(&s.value()),
+                        _ => error(attr.span(), "Could not parse `#[doc]` attribute.")?,
+                    },
+                }
+            }
+        }
+    }
+    if str.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(str))
+    }
 }

@@ -4,6 +4,8 @@ version = "0.1.0"
 authors = ["Lymia Aluysia <lymia@lymia.moe>"]
 edition = "2021"
 
+description = "This is an internal crate used by nekojni, and is not public API."
+
 [lib]
 proc-macro = true
 

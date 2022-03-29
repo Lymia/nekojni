@@ -1,10 +1,11 @@
 mod object_id;
 mod once;
+pub mod registration;
 mod return_ty;
 
 pub use crate::{globals::set_default_exception_class, panicking::catch_panic_jni};
 pub use object_id::IdManager;
-pub use once::JNIStrCache;
+pub use once::OnceCache;
 pub use return_ty::ImportReturnTy;
 
 pub use jni;
@@ -22,6 +23,17 @@ use parking_lot::RwLock;
 
 pub mod jni_ref {
     pub use crate::java_class::jni_ref::{new_rust, new_wrapped};
+
+    use crate::{
+        java_class::{jni_ref::JniRefType, JavaClass},
+        JniRef,
+    };
+
+    pub fn get_cache<'a, 'env, T: JavaClass<'env>, R: JniRefType>(
+        r: &'a JniRef<'env, T, R>,
+    ) -> &'a T::Cache {
+        &r.cache
+    }
 }
 
 pub trait JavaClassImpl<'env>: Sized + Send + Sync + 'static {
@@ -40,6 +52,9 @@ pub trait JavaClassImpl<'env>: Sized + Send + Sync + 'static {
     /// Creates a new [`JniRef`] for this class.
     fn create_jni_ref(env: JNIEnv<'env>, obj: JObject<'env>) -> Result<JniRef<'env, Self>>
     where Self: JavaClass<'env>;
+
+    /// The cache type stored in each [`JniRef`].
+    type Cache: Default + 'env;
 }
 
 pub trait RustContents<'env>: JavaClass<'env> {
@@ -64,6 +79,7 @@ pub fn check_jnienv(_: JNIEnv) {
 }
 
 /// Helper function for typechecking.
+#[inline(never)]
 pub fn promise<T>() -> T {
     unreachable!()
 }
