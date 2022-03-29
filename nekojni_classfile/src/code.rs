@@ -103,6 +103,12 @@ impl MethodWriter {
         self
     }
 
+    pub(crate) fn argc(&mut self, count: usize) -> &mut Self {
+        assert!(count <= u16::MAX as usize);
+        self.max_field = self.max_field.max(count as u16);
+        self
+    }
+
     pub fn label(&mut self, id: LabelId) -> &mut Self {
         assert!(!self.label_map.contains_key(&id));
         self.label_map.insert(id, self.cur_ip);
@@ -129,13 +135,13 @@ impl MethodWriter {
         )))
     }
 
-    pub fn new(&mut self, ty: &Type) -> &mut Self {
+    pub fn new(&mut self, ty: &ClassName) -> &mut Self {
         self.push_instr(Instruction::new(ty.display_jni().to_string()))
     }
-    pub fn anewarray(&mut self, ty: &Type) -> &mut Self {
+    pub fn anewarray(&mut self, ty: &ClassName) -> &mut Self {
         self.push_instr(Instruction::anewarray(ty.display_jni().to_string()))
     }
-    pub fn checkcast(&mut self, ty: &Type) -> &mut Self {
+    pub fn checkcast(&mut self, ty: &ClassName) -> &mut Self {
         self.push_instr(Instruction::checkcast(ty.display_jni().to_string()))
     }
 
@@ -154,6 +160,9 @@ impl MethodWriter {
 
     pub fn aconst_str(&mut self, str: &str) -> &mut Self {
         self.push_instr(Instruction::aconst_str(str.to_string()))
+    }
+    pub fn aconst_class(&mut self, class: &ClassName) -> &mut Self {
+        self.push_instr(Instruction::aconst_class(class.display_jni().to_string()))
     }
     pub fn fconst(&mut self, v: f32) -> &mut Self {
         if v == 0.0 {
@@ -239,8 +248,11 @@ impl InvokeData {
             retc: if sig.ret_ty == ReturnType::Void { 0 } else { 1 },
         }
     }
-    fn make_ref(&self, pool: &mut PoolWriter) -> PoolId {
+    fn make_method_ref(&self, pool: &mut PoolWriter) -> PoolId {
         pool.method_ref_str(&self.class, &self.name, &self.desc)
+    }
+    fn make_interface_method_ref(&self, pool: &mut PoolWriter) -> PoolId {
+        pool.interface_method_ref_str(&self.class, &self.name, &self.desc)
     }
 }
 
@@ -261,6 +273,7 @@ enum Instruction {
     putstatic(FieldData),
 
     aconst_str(String),
+    aconst_class(String),
     fconst(f32),
     iconst(i32),
     dconst(f64),
@@ -307,7 +320,7 @@ impl Instruction {
                     3
                 }
             }
-            Instruction::aconst_str(_) | Instruction::fconst(_) => 3,
+            Instruction::aconst_class(_) | Instruction::aconst_str(_) | Instruction::fconst(_) => 3,
             Instruction::dconst(_) | Instruction::lconst(_) => 3,
 
             Instruction::aload(c)
@@ -361,7 +374,7 @@ impl Instruction {
             anewarray(_) => 0,
             checkcast(_) => 0,
 
-            aconst_str(_) | fconst(_) | iconst(_) => 1,
+            aconst_class(_) | aconst_str(_) | fconst(_) | iconst(_) => 1,
             dconst(_) | lconst(_) => 2,
 
             aload(_) | fload(_) | iload(_) => 1,
@@ -452,21 +465,21 @@ impl Instruction {
         match self {
             Instruction::invokeinterface(data) => {
                 out.write_u8(0xb9)?;
-                data.make_ref(pool).write(&mut out)?;
+                data.make_interface_method_ref(pool).write(&mut out)?;
                 out.write_u8((data.retc + 1) as u8)?;
                 out.write_u8(0)?;
             }
             Instruction::invokespecial(data) => {
                 out.write_u8(0xb7)?;
-                data.make_ref(pool).write(&mut out)?;
+                data.make_method_ref(pool).write(&mut out)?;
             }
             Instruction::invokestatic(data) => {
                 out.write_u8(0xb8)?;
-                data.make_ref(pool).write(&mut out)?;
+                data.make_method_ref(pool).write(&mut out)?;
             }
             Instruction::invokevirtual(data) => {
                 out.write_u8(0xb6)?;
-                data.make_ref(pool).write(&mut out)?;
+                data.make_method_ref(pool).write(&mut out)?;
             }
             Instruction::getfield(data) => {
                 out.write_u8(0xb4)?;
@@ -495,6 +508,10 @@ impl Instruction {
             Instruction::checkcast(ty) => {
                 out.write_u8(0xc0)?;
                 pool.class_str(ty).write(&mut out)?;
+            }
+            Instruction::aconst_class(str) => {
+                out.write_u8(0x13)?; // ldc_w
+                pool.class_str(str).write(&mut out)?;
             }
             Instruction::aconst_str(str) => {
                 out.write_u8(0x13)?; // ldc_w

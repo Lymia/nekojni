@@ -39,13 +39,13 @@ pub fn generate_initialization_class(
         &Type::Boolean,
     );
 
-    const PLATFORM_WINDOWS: i32 = 0;
-    const PLATFORM_MACOS: i32 = 1;
-    const PLATFORM_LINUX: i32 = 2;
+    const PLATFORM_WINDOWS: i32 = 1;
+    const PLATFORM_MACOS: i32 = 2;
+    const PLATFORM_LINUX: i32 = 3;
 
-    const ARCH_X86: i32 = 10;
-    const ARCH_X86_64: i32 = 11;
-    const ARCH_AARCH64: i32 = 12;
+    const ARCH_X86: i32 = 4;
+    const ARCH_X86_64: i32 = 5;
+    const ARCH_AARCH64: i32 = 6;
 
     // private <init>() { }
     {
@@ -66,6 +66,17 @@ pub fn generate_initialization_class(
     }
 
     if let Some(autoload_prefix) = &autoload_prefix {
+        // private static native void native_autoload_cleanup(
+        //   String path, String version, String native_library_name,
+        // )
+        {
+            writer.method(
+                MFlags::Private | MFlags::Static | MFlags::Native | MFlags::Synthetic,
+                "native_autoload_cleanup",
+                &MethodSig::void(&[STRING, STRING, STRING]),
+            );
+        }
+
         // private static int getOperatingSystem()
         //
         // Returns the platform as an number.
@@ -79,36 +90,14 @@ pub fn generate_initialization_class(
             let mut code = method.code();
 
             // retrieve os name.
-            code.aconst_str("os.name")
-                .invokestatic(
-                    &ClassName::new(&["java", "lang"], "System"),
-                    "getProperty",
-                    &MethodSig::new(STRING, &[STRING]),
-                )
-                .astore(0);
-
-            for (id, plaf) in &[
+            get_prop(&mut code, "os.name");
+            code.astore(0);
+            str_prefix(&mut code, 0, "Your operating system is not supported!", &[
                 (PLATFORM_WINDOWS, "Windows "),
                 (PLATFORM_MACOS, "Mac "),
                 (PLATFORM_LINUX, "Linux"),
-            ] {
-                let next = LabelId::new();
-                code.aload(0)
-                    .aconst_str(plaf)
-                    .invokevirtual(
-                        &STRING_CL,
-                        "startsWith",
-                        &MethodSig::new(Type::Boolean, &[STRING]),
-                    )
-                    .iconst(0)
-                    .if_icmpeq(next)
-                    .iconst(*id)
-                    .ireturn()
-                    .label(next);
-            }
-
-            // throws an exception because oppps
-            throw(&mut code, "Your operating system is not supported!");
+            ]);
+            code.ireturn();
         }
 
         // private static int getArchitecture()
@@ -124,15 +113,9 @@ pub fn generate_initialization_class(
             let mut code = method.code();
 
             // retrieve os name.
-            code.aconst_str("os.arch")
-                .invokestatic(
-                    &ClassName::new(&["java", "lang"], "System"),
-                    "getProperty",
-                    &MethodSig::new(STRING, &[STRING]),
-                )
-                .astore(0);
-
-            for (id, arch) in &[
+            get_prop(&mut code, "os.arch");
+            code.astore(0);
+            str_prefix(&mut code, 0, "Your CPU architecture is not supported!", &[
                 (ARCH_X86, "x86"),
                 (ARCH_X86, "i386"),
                 (ARCH_X86, "i486"),
@@ -141,24 +124,8 @@ pub fn generate_initialization_class(
                 (ARCH_X86_64, "amd64"),
                 (ARCH_X86_64, "x86_64"),
                 (ARCH_AARCH64, "aarch64"),
-            ] {
-                let next = LabelId::new();
-                code.aload(0)
-                    .aconst_str(arch)
-                    .invokevirtual(
-                        &STRING_CL,
-                        "startsWith",
-                        &MethodSig::new(Type::Boolean, &[STRING]),
-                    )
-                    .iconst(0)
-                    .if_icmpeq(next)
-                    .iconst(*id)
-                    .ireturn()
-                    .label(next);
-            }
-
-            // throws an exception because oppps
-            throw(&mut code, "Your CPU architecture is not supported!");
+            ]);
+            code.ireturn();
         }
 
         // private static String getTargetName(int platform, int arch)
@@ -173,55 +140,30 @@ pub fn generate_initialization_class(
 
             let arg_platform = 0;
             let arg_arch = 1;
-            let var_builder = 2;
 
             let mut code = method.code();
 
             // construct a new string builder
             new_builder(&mut code);
-            code.astore(2);
 
             // append the architecture name
-            let next = LabelId::new();
-            for (id, arch) in &[
+            str_from_id(&mut code, arg_arch, &[
                 (ARCH_X86, "x86"),
                 (ARCH_X86_64, "x86_64"),
                 (ARCH_AARCH64, "aarch64"),
-            ] {
-                let cont = LabelId::new();
-                code.iload(arg_arch)
-                    .iconst(*id)
-                    .if_icmpne(cont)
-                    .aload(var_builder);
-                str_append(&mut code, arch);
-                code.goto(next)
-                    .label(cont);
-            }
-            throw(&mut code, "internal error: bad arch code");
-            code.label(next);
+            ]);
+            str_append_chain(&mut code);
 
             // append the operating system name
-            let next = LabelId::new();
-            for (id, plaf) in &[
+            str_from_id(&mut code, arg_platform, &[
                 (PLATFORM_WINDOWS, "-pc-windows-msvc"),
                 (PLATFORM_MACOS, "-apple-darwin"),
                 (PLATFORM_LINUX, "-unknown-linux-gnu"),
-            ] {
-                let cont = LabelId::new();
-                code.iload(arg_platform)
-                    .iconst(*id)
-                    .if_icmpne(cont)
-                    .aload(var_builder);
-                str_append(&mut code, plaf);
-                code.goto(next)
-                    .label(cont);
-            }
-            throw(&mut code, "internal error: bad platform code");
-            code.label(next);
+            ]);
+            str_append_chain(&mut code);
 
             // return the platform as a string.
-            code.aload(var_builder)
-                .invokevirtual(&STRINGBUILDER_CL, "toString", &MethodSig::new(STRING, &[]))
+            code.invokevirtual(&STRINGBUILDER_CL, "toString", &MethodSig::new(STRING, &[]))
                 .areturn();
         }
 
@@ -246,77 +188,57 @@ pub fn generate_initialization_class(
             new_builder(&mut code);
             code.astore(var_builder);
 
-            // append a platform-specific prefix
+            // prepend `lib` for macos and linux
             let next = LabelId::new();
-            for (id, plaf) in &[
-                (PLATFORM_MACOS, "lib"),
-                (PLATFORM_LINUX, "lib"),
-            ] {
-                let cont = LabelId::new();
-                code.iload(arg_platform)
-                    .iconst(*id)
-                    .if_icmpne(cont)
-                    .aload(var_builder);
-                str_append(&mut code, plaf);
-                code.goto(next)
-                    .label(cont);
-            }
+            let append_lib = LabelId::new();
+            code.iload(arg_platform)
+                .iconst(PLATFORM_MACOS)
+                .if_icmpeq(append_lib)
+                .iload(arg_platform)
+                .iconst(PLATFORM_LINUX)
+                .if_icmpeq(append_lib)
+                .goto(next)
+                .label(append_lib)
+                .aload(var_builder);
+            str_append_const(&mut code, "lib");
             code.label(next);
 
             // append the library name
             let next = LabelId::new();
             let is_jar = LabelId::new();
-            code.iload(arg_is_jar)
+            let versioned_name = format!(
+                "{}-{}",
+                &autoload_prefix.native_library_name, &autoload_prefix.version
+            );
+            code.aload(var_builder)
+                .iload(arg_is_jar)
                 .iconst(0)
                 .if_icmpne(is_jar)
-                .aload(var_builder);
-            str_append(
-                &mut code,
-                &format!("{}-{}", &autoload_prefix.native_library_name, &autoload_prefix.version),
-            );
-            code.goto(next)
+                .aconst_str(&versioned_name)
+                .goto(next)
                 .label(is_jar)
-                .aload(var_builder);
-            str_append(&mut code, &autoload_prefix.native_library_name);
-            code.label(next);
+                .aconst_str(&autoload_prefix.native_library_name)
+                .label(next);
+            str_append_chain(&mut code);
+            code.pop();
 
-            // append an archetecture suffix
-            let next = LabelId::new();
-            for (id, arch) in &[
+            // append the architecture name
+            code.aload(var_builder);
+            str_from_id(&mut code, arg_arch, &[
                 (ARCH_X86, ".x86"),
                 (ARCH_X86_64, ".x86_64"),
                 (ARCH_AARCH64, ".aarch64"),
-            ] {
-                let cont = LabelId::new();
-                code.iload(arg_arch)
-                    .iconst(*id)
-                    .if_icmpne(cont)
-                    .aload(var_builder);
-                str_append(&mut code, arch);
-                code.goto(next)
-                    .label(cont);
-            }
-            throw(&mut code, "internal error: bad arch code");
-            code.label(next);
+            ]);
+            str_append(&mut code);
 
-            // append a platform-specific suffix
-            let next = LabelId::new();
-            for (id, plaf) in &[
+            // append the operating system extension
+            code.aload(var_builder);
+            str_from_id(&mut code, arg_platform, &[
                 (PLATFORM_WINDOWS, ".dll"),
                 (PLATFORM_MACOS, ".dylib"),
                 (PLATFORM_LINUX, ".so"),
-            ] {
-                let cont = LabelId::new();
-                code.iload(arg_platform)
-                    .iconst(*id)
-                    .if_icmpne(cont)
-                    .aload(var_builder);
-                str_append(&mut code, plaf);
-                code.goto(next)
-                    .label(cont);
-            }
-            throw(&mut code, "internal error: bad platform code");
-            code.label(next);
+            ]);
+            str_append(&mut code);
 
             // return the platform as a string.
             code.aload(var_builder)
@@ -344,7 +266,7 @@ pub fn generate_initialization_class(
                     &MethodSig::new(STRING, &[STRING]),
                 )
                 .iconst(0)
-                .anewarray(&STRING)
+                .anewarray(&STRING_CL)
                 .invokestatic(
                     &ClassName::new(&["java", "nio", "file"], "Paths"),
                     "get",
@@ -360,19 +282,18 @@ pub fn generate_initialization_class(
 
             // create the paths if they do not exist
             let file_attribute =
-                Type::class(&["java", "nio", "file", "attribute"], "FileAttribute");
+                ClassName::new(&["java", "nio", "file", "attribute"], "FileAttribute");
             code.aload(0)
                 .iconst(0)
                 .anewarray(&file_attribute)
                 .invokestatic(
                     &ClassName::new(&["java", "nio", "file"], "Files"),
                     "createDirectories",
-                    &MethodSig::new(PATH, &[PATH, file_attribute.array()])
+                    &MethodSig::new(PATH, &[PATH, Type::from(file_attribute).array()]),
                 )
                 .pop();
 
-            code.aload(0)
-                .areturn();
+            code.aload(0).areturn();
         }
 
         // private static synchronized void loadNativeLibrary()
@@ -391,6 +312,9 @@ pub fn generate_initialization_class(
             let var_cache_artifact_name = 3;
             let var_target_name = 4;
             let var_cache_path = 5;
+            let var_resource_name = 6;
+            let var_native_data = 7;
+            let var_cache_dir = 8;
 
             let mut code = method.code();
 
@@ -434,16 +358,16 @@ pub fn generate_initialization_class(
 
             // find the temporary path
             code.invokestatic(&name, "getLibraryStore", &MethodSig::new(PATH, &[]))
-                .astore(var_cache_path);
+                .astore(var_cache_dir);
 
             // find the full path of the binary
-            code.aload(var_cache_path)
+            code.aload(var_cache_dir)
                 .aload(var_cache_artifact_name)
                 .invokeinterface(&PATH_CL, "resolve", &MethodSig::new(PATH, &[STRING]))
                 .astore(var_cache_path);
 
-            // check if the library file exists
-            let link_option = Type::class(&["java", "nio", "file"], "LinkOption");
+            // check if the library file exists, and skip to library loading if it does
+            let link_option = ClassName::new(&["java", "nio", "file"], "LinkOption");
             let skip_write = LabelId::new();
             code.aload(var_cache_path)
                 .iconst(0)
@@ -451,13 +375,56 @@ pub fn generate_initialization_class(
                 .invokestatic(
                     &ClassName::new(&["java", "nio", "file"], "Files"),
                     "exists",
-                    &MethodSig::new(Type::Boolean, &[PATH, link_option.array()])
+                    &MethodSig::new(Type::Boolean, &[PATH, Type::from(link_option).array()]),
                 )
                 .iconst(0)
                 .if_icmpne(skip_write);
 
-            // copy the library file if it does not already exist
-            // TODO: AAAA
+            // calculate the resource name for the library
+            new_builder(&mut code);
+            str_append_chain_const(&mut code, &format!("{}/", &autoload_prefix.resource_prefix));
+            str_append_chain_var(&mut code, var_target_name);
+            str_append_chain_const(&mut code, "/");
+            str_append_chain_var(&mut code, var_jar_artifact_name);
+            code.invokevirtual(&STRINGBUILDER_CL, "toString", &MethodSig::new(STRING, &[]))
+                .astore(var_resource_name);
+
+            // load the resource data
+            let next = LabelId::new();
+            code.aconst_class(&name)
+                .aload(var_resource_name)
+                .invokevirtual(
+                    &ClassName::new(&["java", "lang"], "Class"),
+                    "getResourceAsStream",
+                    &MethodSig::new(Type::class(&["java", "io"], "InputStream"), &[STRING]),
+                )
+                .dup()
+                .ifnonnull(next);
+            throw(&mut code, "Native binary for your platform was not found.");
+            code.label(next)
+                .invokevirtual(
+                    &ClassName::new(&["java", "io"], "InputStream"),
+                    "readAllBytes",
+                    &MethodSig::new(Type::Byte.array(), &[]),
+                )
+                .astore(var_native_data);
+
+            // write out the resource data to the target path
+            let open_option = ClassName::new(&["java", "nio", "file"], "OpenOption");
+            code.aload(var_cache_path)
+                .aload(var_native_data)
+                .iconst(0)
+                .anewarray(&open_option)
+                .invokestatic(
+                    &ClassName::new(&["java", "nio", "file"], "Files"),
+                    "write",
+                    &MethodSig::new(PATH, &[
+                        PATH,
+                        Type::Byte.array(),
+                        Type::from(open_option).array(),
+                    ]),
+                )
+                .pop();
 
             // load the actual library
             code.label(skip_write)
@@ -469,7 +436,18 @@ pub fn generate_initialization_class(
                     &MethodSig::void(&[STRING]),
                 );
 
-            // cleanup
+            // run the native cleanup
+            code.aload(var_cache_dir)
+                .invokevirtual(&OBJECT_CL, "toString", &MethodSig::new(STRING, &[]))
+                .aconst_str(&autoload_prefix.version)
+                .aconst_str(&autoload_prefix.native_library_name)
+                .invokestatic(
+                    &name,
+                    "native_autoload_cleanup",
+                    &MethodSig::void(&[STRING, STRING, STRING]),
+                );
+
+            // return
             code.vreturn();
         }
     }
@@ -541,6 +519,19 @@ pub fn generate_initialization_class(
             .if_icmpne(is_already_init)
             .invokestatic(&name, "checkInit", &MethodSig::void(&[]))
             .label(is_already_init)
+            .vreturn();
+    }
+
+    {
+        let method = writer.method(
+            MFlags::Public | MFlags::Static | MFlags::Synthetic,
+            "main",
+            &MethodSig::void(&[STRING.array()]),
+        );
+
+        method
+            .code()
+            .invokestatic(&name, "init", &MethodSig::void(&[]))
             .vreturn();
     }
 

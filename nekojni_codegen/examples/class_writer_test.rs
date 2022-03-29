@@ -5,7 +5,7 @@ use std::{collections::HashMap, fs::File, io::Write, path::PathBuf};
 fn main() {
     let mut classes = HashMap::new();
     nekojni_codegen::generate_initialization_class(
-        ClassName::new(&["moe", "lymia", "princess"], "PrincessTest"),
+        ClassName::new(&[], "PrincessTest"),
         &mut classes,
         Some(AutoloadPath {
             resource_prefix: "moe/lymia/princess/native_bin".into(),

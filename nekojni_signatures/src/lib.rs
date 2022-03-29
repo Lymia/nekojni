@@ -146,6 +146,11 @@ impl<'a> Type<'a> {
         self.array_dim != 0 || self.basic_sig.is_primitive()
     }
 }
+impl<'a> From<ClassName<'a>> for Type<'a> {
+    fn from(cn: ClassName<'a>) -> Self {
+        Type::new(BasicType::Class(cn))
+    }
+}
 
 /// A basic Java type.
 ///
