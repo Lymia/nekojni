@@ -149,7 +149,7 @@ pub fn jni_export(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
                     #nekojni::signatures::Type::new(
                         #nekojni::signatures::BasicType::Class(#class_name)
                     );
-                const CODEGEN_INFO: Option<#nekojni::java_class::CodegenClass> = None;
+                const CODEGEN_INFO: Option<#nekojni_internal::exports::CodegenClass> = None;
                 fn register_methods(&self, env: #jni::JNIEnv) -> #nekojni::Result<()> {
                     // TODO: register_methods
                     #nekojni::Result::Ok(())

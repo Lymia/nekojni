@@ -277,7 +277,7 @@ fn method_wrapper_java(
             SIGNATURE.display_jni().to_string().into()
         });
 
-        let cache = #nekojni_internal::jni_ref::get_cache(&env);
+        //let cache = #nekojni_internal::jni_ref::get_cache(&env);
 
         todo!()
     };

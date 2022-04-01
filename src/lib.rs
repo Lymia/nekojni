@@ -10,17 +10,15 @@ mod errors;
 #[doc(hidden)]
 pub mod __macro_internals;
 
-mod globals;
+mod internal;
 mod jni_env;
-mod panicking;
 
 pub use errors::{Error, Result};
-pub use java_class::{JniRef, JniRefMut};
+pub use java_class::{
+    jni_ref::{JniRef, JniRefMut},
+    JavaClass,
+};
 pub use jni_env::JniEnv;
-
-/// The module containing code used for generating Java code from Rust modules.
-#[cfg(feature = "codegen")]
-pub mod codegen;
 
 /// The module containing the types used for conversions between Java and Rust types.
 pub mod conversions;

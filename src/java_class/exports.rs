@@ -13,60 +13,32 @@ pub enum JavaVisibility {
     Private,
 }
 
-/// The attributes of a generated method or class.
-#[derive(Debug)]
-#[non_exhaustive]
-pub struct MethodAttributes {
-    /// The Java documentation of this method, formatted using the Javadoc or Scaladoc formatting.
-    pub docs: &'static str,
-    /// The visibility of a method.
-    pub visibility: JavaVisibility,
-}
-
 /// Represents something exported from a Java class defined in Rust.
 ///
 /// This is primarily intended to allow code generation for the Java-side of the Rust bindings.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ExportedItem {
+    /// A constructor exported to JVM code from JNI.
+    NativeConstructor {
+        /// The Java type signature of the method.
+        ///
+        /// The return type must be `void` for this to work correctly.
+        signature: MethodSig<'static>,
+    },
     /// A method exported to JVM code from JNI.
     NativeMethod {
         /// The name of the method exposed publicly to Java code.
         java_name: &'static str,
         /// The name of the native method exported by the Rust module.
         ///
-        /// This is normally different from `java_name` to allow for some protection against
-        /// mismatching type signatures, as this contains a hash of the type signature of the
-        /// parameters of the Rust function when automatically derived.
-        ///
         /// If this is equal to `java_name`, no proxy function will be generated, and the native
         /// function will be directly exposed to Java code.
         native_fn_name: &'static str,
-        /// The attributes of the method.
-        attributes: MethodAttributes,
+        /// The visibility of the method.
+        visibility: JavaVisibility,
         /// The Java type signature of the method.
         signature: MethodSig<'static>,
-    },
-    /// A field exported to JVM code from JNI.
-    NativeField {
-        /// The name of the field in Java.
-        ///
-        /// For Java code, this is converted into a pair of `getFoo` and `setFoo` methods. For
-        /// Scala code, it generates a pair of `foo` and `foo_=` methods (allowing normal field
-        /// access syntax).
-        java_name: &'static str,
-        /// The name of the native setter exported by the Rust module, or `None` if one shouldn't
-        /// be generated.
-        native_setter_name: Option<&'static str>,
-        /// The name of the native getter exported by the Rust module, or `None` if one shouldn't
-        /// be generated.
-        native_getter_name: Option<&'static str>,
-        /// The attributes of the generated setter. Ignored if no setter is generated.
-        setter_attributes: MethodAttributes,
-        /// The attributes of the generated getter. Ignored if no getter is generated.
-        getter_attributes: MethodAttributes,
-        /// The Java type of the field.
-        ty: Type<'static>,
     },
     /// A field stored in the Java class, and exposed to Rust code.
     ///
@@ -74,8 +46,8 @@ pub enum ExportedItem {
     JavaField {
         /// The name of the Java field.
         java_name: &'static str,
-        /// The attributes of the Java field.
-        attributes: MethodAttributes,
+        /// The visibility of the Java field.
+        visibility: JavaVisibility,
         /// The Java type of the field.
         ty: Type<'static>,
     },
@@ -84,8 +56,6 @@ pub enum ExportedItem {
 /// A trait representing a Java class that may be exported via codegen.
 #[derive(Debug)]
 pub struct CodegenClass {
-    /// The Java documentation of this class, formatted using the Javadoc or Scaladoc formatting.
-    pub docs: &'static str,
     /// The name of this class.
     pub name: ClassName<'static>,
     /// The visibility of this class.

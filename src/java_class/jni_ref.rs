@@ -1,6 +1,6 @@
 #![allow(deprecated)]
 
-use crate::{__macro_internals::RustContents, errors::*, java_class::*};
+use crate::{errors::*, java_class::*};
 use jni::objects::{JObject, JValue};
 use parking_lot::{
     lock_api::{ArcRwLockUpgradableReadGuard, ArcRwLockWriteGuard},

@@ -88,7 +88,7 @@ pub fn catch_panic_jni<'env, T: JavaConversion<'env>, R: MethodReturn<T>>(
     // for safety, just in case there's a bug that might cause panics in e.g. backtrace, since
     // we invoke a lot of weird stuff trying to get the panic string.
     match std::panic::catch_unwind(AssertUnwindSafe(|| {
-        let exception_class = crate::globals::get_default_exception_class();
+        let exception_class = crate::internal::globals::get_default_exception_class();
         match catch_panic(|| {
             let result = func();
             if result.is_error() {

@@ -102,7 +102,7 @@ impl Error {
 
     /// Catches a panic and converts it to an `Error`.
     pub fn catch_panic<R>(func: impl FnOnce() -> R) -> Result<R> {
-        crate::panicking::catch_panic(func)
+        crate::internal::panicking::catch_panic(func)
     }
 
     /// Emits an error into an [`JNIEnv`]
