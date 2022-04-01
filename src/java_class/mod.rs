@@ -7,6 +7,8 @@ use jni::objects::JObject;
 use nekojni_signatures::Type;
 use parking_lot::RwLock;
 
+// TODO: Generate native-image configurations.
+
 /// A trait representing a Java class.
 pub trait JavaClass<'env>: JavaClassImpl<'env> {}
 

@@ -1,7 +1,15 @@
+use darling::FromAttributes;
 use crate::{errors::*, java_class::JavaClassCtx, utils::*, MacroCtx};
 use proc_macro2::TokenStream as SynTokenStream;
 use quote::{quote, quote_spanned};
 use syn::{parse2, spanned::Spanned, FnArg, ImplItemMethod, Pat, ReturnType, Signature, Type};
+
+#[derive(Debug, FromAttributes)]
+#[darling(attributes(jni))]
+pub(crate) struct FunctionAttrs {
+    #[darling(default)]
+    rename: Option<String>,
+}
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum FuncSelfMode {
@@ -156,6 +164,7 @@ fn method_wrapper_java(
     ctx: &MacroCtx,
     components: &mut JavaClassCtx,
     item: &mut ImplItemMethod,
+    attrs: &FunctionAttrs,
 ) -> Result<bool> {
     if !item.block.stmts.is_empty() {
         error(item.block.span(), "extern \"Java\" functions must have an empty body.")?;
@@ -172,6 +181,12 @@ fn method_wrapper_java(
     let nekojni_internal = &ctx.internal;
     let std = &ctx.std;
     let jni = &ctx.jni;
+
+    // Java method name
+    let java_name = match &attrs.rename {
+        None => heck::AsLowerCamelCase(item.sig.ident.to_string()).to_string(),
+        Some(name) => name.clone(),
+    };
 
     // Setup important spans
     let item_span = item.span();
@@ -205,6 +220,7 @@ fn method_wrapper_java(
     let mut param_types: Vec<_> = args.iter().map(FuncArgMode::ty).collect();
 
     let mut param_names = Vec::new();
+    let mut param_names_java = Vec::new();
     let mut param_conversion = SynTokenStream::new();
     for arg in &args {
         let in_name = components.gensym("in");
@@ -218,11 +234,12 @@ fn method_wrapper_java(
         };
 
         param_conversion.extend(quote_spanned! { item_span =>
-            let #java_name = <#ty as #nekojni::conversions::JavaConversion>::to_java(
+            let #java_name = <#ty as #nekojni::conversions::JavaConversion>::to_java_value(
                 #in_arg, env,
             );
         });
         param_names.push(in_name);
+        param_names_java.push(java_name);
     }
 
     let ret_ty = match &item.sig.output {
@@ -244,6 +261,24 @@ fn method_wrapper_java(
             });
     }
 
+    let rust_class_name = item.sig.ident.to_string();
+    let call_method = match self_mode {
+        FuncSelfMode::EnvRef => quote_spanned! { item_span =>
+            let this = #nekojni::JniRef::this(self);
+            let ret_val = env.call_method(
+                this, #java_name, signature_name, &[#(#param_names_java,)*],
+            );
+        },
+        FuncSelfMode::Static => {
+            let class_name = &components.class_name;
+            quote_spanned! { item_span =>
+                let ret_val = env.call_static_method(
+                    #class_name, #java_name, signature_name, &[#(#param_names_java,)*],
+                );
+            }
+        },
+        _ => unreachable!(),
+    };
     let mut body = quote_spanned! { item_span =>
         const PARAMS: &'static [#nekojni::signatures::Type<'static>] = &[
             #(<#param_types as #nekojni::conversions::JavaConversion>::JAVA_TYPE,)*
@@ -259,21 +294,15 @@ fn method_wrapper_java(
         let env = #env;
         #param_conversion
 
-        static JNI_RET_CACHE: #nekojni_internal::OnceCache<#jni::signature::JavaType> =
+        static SIGNATURE_CACHE: #nekojni_internal::OnceCache<#std::string::String> =
             #nekojni_internal::OnceCache::new();
-        static SIGNATURE_CACHE: #nekojni_internal::OnceCache<#jni::strings::JNIString> =
-            #nekojni_internal::OnceCache::new();
+        let signature_name = SIGNATURE_CACHE.init(|| SIGNATURE.display_jni().to_string());
 
-        let jni_ret_cache = JNI_RET_CACHE.init(|| {
-            SIGNATURE.ret_ty.into()
-        });
-        let signature_name = SIGNATURE_CACHE.init(|| {
-            SIGNATURE.display_jni().to_string().into()
-        });
+        #call_method
 
-        //let cache = #nekojni_internal::jni_ref::get_cache(&env);
-
-        todo!()
+        #nekojni_internal::ImportReturnTy::from_return_ty(
+            #rust_class_name, env, ret_val.map_err(|x| x.into()),
+        )
     };
     if self_mode == FuncSelfMode::Static {
         let wrapper_fn = components.gensym("wrapper_fn");
@@ -305,6 +334,7 @@ fn method_wrapper_exported(
     ctx: &MacroCtx,
     components: &mut JavaClassCtx,
     item: &mut ImplItemMethod,
+    attrs: &FunctionAttrs,
 ) -> Result<bool> {
     item.sig.abi = None;
 
@@ -323,6 +353,7 @@ pub(crate) fn method_wrapper(
     }
 
     // process the method's attributes
+    let attrs: FunctionAttrs = FromAttributes::from_attributes(&item.attrs)?;
     for attr in &mut item.attrs {
         if last_path_segment(&attr.path) == "jni" {
             mark_attribute_processed(attr);
@@ -334,9 +365,9 @@ pub(crate) fn method_wrapper(
         if let Some(abi) = &abi.name {
             let abi = abi.value();
             if abi == "Java" {
-                return method_wrapper_java(ctx, components, item);
+                return method_wrapper_java(ctx, components, item, &attrs);
             }
         }
     }
-    method_wrapper_exported(ctx, components, item)
+    method_wrapper_exported(ctx, components, item, &attrs)
 }
