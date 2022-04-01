@@ -1,5 +1,5 @@
 use byteorder::{WriteBytesExt, BE};
-use nekojni_signatures::{ClassName, MethodSig, Type};
+use nekojni_signatures::{ClassName, Type};
 use std::{
     collections::HashMap,
     io::{Cursor, Error, Write},
@@ -22,22 +22,10 @@ enum PoolEntry {
     Double(u64), // f64 bits
     Class(PoolId),
     String(PoolId),
-    FieldRef {
-        class_index: PoolId,
-        name_and_type_index: PoolId,
-    },
-    MethodRef {
-        class_index: PoolId,
-        name_and_type_index: PoolId,
-    },
-    InterfaceMethodRef {
-        class_index: PoolId,
-        name_and_type_index: PoolId,
-    },
-    NameAndType {
-        name_index: PoolId,
-        descriptor_index: PoolId,
-    },
+    FieldRef { class_index: PoolId, name_and_type_index: PoolId },
+    MethodRef { class_index: PoolId, name_and_type_index: PoolId },
+    InterfaceMethodRef { class_index: PoolId, name_and_type_index: PoolId },
+    NameAndType { name_index: PoolId, descriptor_index: PoolId },
 }
 
 #[derive(Default, Debug)]
@@ -87,34 +75,22 @@ impl PoolWriter {
                 self.writer.write_u8(8)?;
                 self.writer.write_u16::<BE>(str.0)?;
             }
-            PoolEntry::FieldRef {
-                class_index,
-                name_and_type_index,
-            } => {
+            PoolEntry::FieldRef { class_index, name_and_type_index } => {
                 self.writer.write_u8(9)?;
                 self.writer.write_u16::<BE>(class_index.0)?;
                 self.writer.write_u16::<BE>(name_and_type_index.0)?;
             }
-            PoolEntry::MethodRef {
-                class_index,
-                name_and_type_index,
-            } => {
+            PoolEntry::MethodRef { class_index, name_and_type_index } => {
                 self.writer.write_u8(10)?;
                 self.writer.write_u16::<BE>(class_index.0)?;
                 self.writer.write_u16::<BE>(name_and_type_index.0)?;
             }
-            PoolEntry::InterfaceMethodRef {
-                class_index,
-                name_and_type_index,
-            } => {
+            PoolEntry::InterfaceMethodRef { class_index, name_and_type_index } => {
                 self.writer.write_u8(11)?;
                 self.writer.write_u16::<BE>(class_index.0)?;
                 self.writer.write_u16::<BE>(name_and_type_index.0)?;
             }
-            PoolEntry::NameAndType {
-                name_index,
-                descriptor_index,
-            } => {
+            PoolEntry::NameAndType { name_index, descriptor_index } => {
                 self.writer.write_u8(12)?;
                 self.writer.write_u16::<BE>(name_index.0)?;
                 self.writer.write_u16::<BE>(descriptor_index.0)?;
@@ -140,10 +116,7 @@ impl PoolWriter {
     fn name_and_type(&mut self, v: &str, descriptor: &str) -> PoolId {
         let name_index = self.utf8(v);
         let descriptor_index = self.utf8(descriptor);
-        self.entry(PoolEntry::NameAndType {
-            name_index,
-            descriptor_index,
-        })
+        self.entry(PoolEntry::NameAndType { name_index, descriptor_index })
     }
 
     pub fn utf8(&mut self, v: &str) -> PoolId {
@@ -176,18 +149,12 @@ impl PoolWriter {
     pub fn field_ref_str(&mut self, cl: &str, name: &str, ty: &str) -> PoolId {
         let class = self.class_str(cl);
         let name_and_type = self.name_and_type(name, &ty);
-        self.entry(PoolEntry::FieldRef {
-            class_index: class,
-            name_and_type_index: name_and_type,
-        })
+        self.entry(PoolEntry::FieldRef { class_index: class, name_and_type_index: name_and_type })
     }
     pub fn method_ref_str(&mut self, cl: &str, name: &str, ty: &str) -> PoolId {
         let class = self.class_str(cl);
         let name_and_type = self.name_and_type(name, &ty);
-        self.entry(PoolEntry::MethodRef {
-            class_index: class,
-            name_and_type_index: name_and_type,
-        })
+        self.entry(PoolEntry::MethodRef { class_index: class, name_and_type_index: name_and_type })
     }
     pub fn interface_method_ref_str(&mut self, cl: &str, name: &str, ty: &str) -> PoolId {
         let class = self.class_str(cl);

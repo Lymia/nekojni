@@ -15,10 +15,7 @@ struct IdManagerData<T: Send + Sync> {
 }
 impl<T: Send + Sync> IdManagerData<T> {
     const fn new() -> Self {
-        IdManagerData {
-            nodes: Vec::new(),
-            head: 0,
-        }
+        IdManagerData { nodes: Vec::new(), head: 0 }
     }
 
     fn get(&self, id: u32) -> Result<Arc<T>> {

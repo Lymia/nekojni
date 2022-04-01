@@ -19,9 +19,7 @@ impl<T> MethodReturn<T> for T {
         false
     }
     fn emit_error(self, _env: JniEnv, _exception_class: &str) -> Result<()> {
-        Err(Error::message(
-            "attempted to emit error from method that cannot fail",
-        ))
+        Err(Error::message("attempted to emit error from method that cannot fail"))
     }
 }
 impl<T, E: ErrorTrait + 'static> MethodReturn<T> for StdResult<T, E> {

@@ -43,11 +43,7 @@ pub fn str_append_var(code: &mut MethodWriter, id: u16) {
 }
 
 pub fn str_append_chain(code: &mut MethodWriter) {
-    code.invokevirtual(
-        &STRINGBUILDER_CL,
-        "append",
-        &MethodSig::new(STRINGBUILDER, &[STRING]),
-    );
+    code.invokevirtual(&STRINGBUILDER_CL, "append", &MethodSig::new(STRINGBUILDER, &[STRING]));
 }
 pub fn str_append_chain_const(code: &mut MethodWriter, what: &str) {
     code.aconst_str(what);
@@ -72,11 +68,7 @@ pub fn str_prefix(code: &mut MethodWriter, arg_str: u16, err: &str, prefixes: &[
         let next = LabelId::new();
         code.aload(arg_str)
             .aconst_str(prefix)
-            .invokevirtual(
-                &STRING_CL,
-                "startsWith",
-                &MethodSig::new(Type::Boolean, &[STRING]),
-            )
+            .invokevirtual(&STRING_CL, "startsWith", &MethodSig::new(Type::Boolean, &[STRING]))
             .iconst(0)
             .if_icmpeq(next)
             .iconst(*id)
@@ -98,4 +90,60 @@ pub fn str_from_id(code: &mut MethodWriter, arg_str: u16, prefixes: &[(i32, &str
             .label(cont);
     }
     code.aconst_null().label(next);
+}
+
+pub fn push_param(code: &mut MethodWriter, id: u16, ty: &Type) -> u16 {
+    if ty.array_dim != 0 {
+        code.aload(id);
+        1
+    } else {
+        match &ty.basic_sig {
+            BasicType::Byte
+            | BasicType::Short
+            | BasicType::Int
+            | BasicType::Boolean
+            | BasicType::Char => {
+                code.iload(id);
+                2
+            }
+            BasicType::Long => {
+                code.lload(id);
+                1
+            }
+            BasicType::Float => {
+                code.fload(id);
+                1
+            }
+            BasicType::Double => {
+                code.dload(id);
+                2
+            }
+            BasicType::Class(_) => {
+                code.aload(id);
+                1
+            }
+        }
+    }
+}
+pub fn return_param(code: &mut MethodWriter, ty: &ReturnType) {
+    match ty {
+        ReturnType::Void => code.vreturn(),
+        ReturnType::Ty(ty) => {
+            if ty.array_dim != 0 {
+                code.areturn()
+            } else {
+                match &ty.basic_sig {
+                    BasicType::Byte
+                    | BasicType::Short
+                    | BasicType::Int
+                    | BasicType::Boolean
+                    | BasicType::Char => code.ireturn(),
+                    BasicType::Long => code.lreturn(),
+                    BasicType::Float => code.freturn(),
+                    BasicType::Double => code.dreturn(),
+                    BasicType::Class(_) => code.areturn(),
+                }
+            }
+        }
+    };
 }

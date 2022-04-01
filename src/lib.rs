@@ -1,4 +1,4 @@
-#![feature(backtrace)]
+#![feature(backtrace, downcast_unchecked)]
 #![deny(unused_must_use)]
 
 #[macro_use]

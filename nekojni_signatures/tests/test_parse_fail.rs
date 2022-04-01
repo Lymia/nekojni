@@ -20,11 +20,7 @@ const PARSE_FAIL_SIGS_JAVA: &[&str] = &[
 #[test]
 fn test_parse_fail_sigs_java() {
     for sig in PARSE_FAIL_SIGS_JAVA {
-        assert!(
-            MethodSig::parse_java(sig).is_err(),
-            "should not parse: {:?}",
-            sig
-        );
+        assert!(MethodSig::parse_java(sig).is_err(), "should not parse: {:?}", sig);
     }
 }
 

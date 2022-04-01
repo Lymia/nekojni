@@ -19,34 +19,22 @@ pub struct MethodSig<'a> {
 impl<'a> MethodSig<'a> {
     /// Creates a new method signature.
     pub const fn new(ret_ty: Type<'a>, params: &'a [Type<'a>]) -> Self {
-        MethodSig {
-            ret_ty: ReturnType::Ty(ret_ty),
-            params: StaticList::Borrowed(params),
-        }
+        MethodSig { ret_ty: ReturnType::Ty(ret_ty), params: StaticList::Borrowed(params) }
     }
 
     /// Creates a new method signature with an owned parameter list.
     pub fn new_owned(ret_ty: Type<'a>, params: &[Type<'a>]) -> Self {
-        MethodSig {
-            ret_ty: ReturnType::Ty(ret_ty),
-            params: StaticList::Owned(params.to_vec()),
-        }
+        MethodSig { ret_ty: ReturnType::Ty(ret_ty), params: StaticList::Owned(params.to_vec()) }
     }
 
     /// Creates a new method signature that returns void.
     pub const fn void(params: &'a [Type<'a>]) -> Self {
-        MethodSig {
-            ret_ty: ReturnType::Void,
-            params: StaticList::Borrowed(params),
-        }
+        MethodSig { ret_ty: ReturnType::Void, params: StaticList::Borrowed(params) }
     }
 
     /// Creates a new method signature that returns void with an owned parameter list.
     pub fn void_owned(params: &[Type<'a>]) -> Self {
-        MethodSig {
-            ret_ty: ReturnType::Void,
-            params: StaticList::Owned(params.to_vec()),
-        }
+        MethodSig { ret_ty: ReturnType::Void, params: StaticList::Owned(params.to_vec()) }
     }
 }
 
@@ -77,29 +65,17 @@ impl<'a> Type<'a> {
 
     /// Create a new type for a given basic type.
     pub const fn new(ty: BasicType<'a>) -> Self {
-        Type {
-            basic_sig: ty,
-            array_dim: 0,
-            generics: StaticList::Borrowed(&[]),
-        }
+        Type { basic_sig: ty, array_dim: 0, generics: StaticList::Borrowed(&[]) }
     }
 
     /// Create a new type for a given basic type with generics.
     pub const fn new_generic(ty: BasicType<'a>, generics: &'a [Type<'a>]) -> Self {
-        Type {
-            basic_sig: ty,
-            array_dim: 0,
-            generics: StaticList::Borrowed(generics),
-        }
+        Type { basic_sig: ty, array_dim: 0, generics: StaticList::Borrowed(generics) }
     }
 
     /// Create a new type for a given basic type with an owned generics list.
     pub fn new_generic_owned(ty: BasicType<'a>, generics: &[Type<'a>]) -> Self {
-        Type {
-            basic_sig: ty,
-            array_dim: 0,
-            generics: StaticList::Owned(generics.to_vec()),
-        }
+        Type { basic_sig: ty, array_dim: 0, generics: StaticList::Owned(generics.to_vec()) }
     }
 
     /// Create a new class name.
@@ -123,10 +99,7 @@ impl<'a> Type<'a> {
 
     /// Create a new class name with an owned package path and generics list.
     pub fn generic_class_owned(package: &[&'a str], name: &'a str, generics: &[Type<'a>]) -> Self {
-        Type::new_generic_owned(
-            BasicType::Class(ClassName::new_owned(package, name)),
-            generics,
-        )
+        Type::new_generic_owned(BasicType::Class(ClassName::new_owned(package, name)), generics)
     }
 
     /// Create a new type for an array.
@@ -194,18 +167,12 @@ pub struct ClassName<'a> {
 impl<'a> ClassName<'a> {
     /// Create a new class name.
     pub const fn new(package: &'a [&'a str], name: &'a str) -> Self {
-        ClassName {
-            package: StaticList::Borrowed(package),
-            name,
-        }
+        ClassName { package: StaticList::Borrowed(package), name }
     }
 
     /// Create a new class name with an owned package path.
     pub fn new_owned(package: &[&'a str], name: &'a str) -> Self {
-        ClassName {
-            package: StaticList::Owned(package.to_vec()),
-            name,
-        }
+        ClassName { package: StaticList::Owned(package.to_vec()), name }
     }
 }
 

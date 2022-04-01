@@ -112,15 +112,10 @@ pub fn new_rust<'env, T: RustContents<'env>>(
         JValue::Int(i) => i as u32,
         _ => unreachable!(),
     };
-    let lock = T::get_manager().get(id)?;
+    let manager = env.get_id_manager::<T>();
+    let lock = manager.get(id)?;
     let inner = InnerRef::Read(lock.upgradable_read_arc());
-    Ok(JniRef {
-        this,
-        inner,
-        env,
-        phantom: PhantomData,
-        cache: T::Cache::default(),
-    })
+    Ok(JniRef { this, inner, env, phantom: PhantomData, cache: T::Cache::default() })
 }
 
 /// Creates a new [`JniRef`] from a JNI environment and a java object.

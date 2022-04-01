@@ -7,10 +7,7 @@ pub struct OnceCache<T> {
 }
 impl<T> OnceCache<T> {
     pub const fn new() -> Self {
-        OnceCache {
-            once: Once::new(),
-            cache: AtomicPtr::new(std::ptr::null_mut()),
-        }
+        OnceCache { once: Once::new(), cache: AtomicPtr::new(std::ptr::null_mut()) }
     }
 
     pub fn init(&self, func: fn() -> T) -> &T {

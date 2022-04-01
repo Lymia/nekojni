@@ -2,7 +2,6 @@ use crate::PoolWriter;
 use byteorder::{WriteBytesExt, BE};
 use std::{
     fmt::Debug,
-    hash::Hasher,
     io::{Cursor, Error, Write},
 };
 

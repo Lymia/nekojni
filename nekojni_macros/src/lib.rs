@@ -6,8 +6,8 @@ mod java_class;
 mod signatures;
 
 use proc_macro::TokenStream;
-use proc_macro2::{Span, TokenStream as SynTokenStream};
-use proc_macro_crate::{Error, FoundCrate};
+use proc_macro2::TokenStream as SynTokenStream;
+use proc_macro_crate::FoundCrate;
 use quote::quote;
 use std::sync::atomic::{AtomicUsize, Ordering};
 

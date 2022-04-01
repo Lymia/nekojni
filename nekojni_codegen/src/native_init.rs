@@ -57,11 +57,8 @@ fn generate_initialization_class(
 
     // private <init>() { }
     {
-        let method = writer.method(
-            MFlags::Private | MFlags::Synthetic,
-            "<init>",
-            &MethodSig::void(&[]),
-        );
+        let method =
+            writer.method(MFlags::Private | MFlags::Synthetic, "<init>", &MethodSig::void(&[]));
         method
             .code()
             .aload(0)
@@ -214,10 +211,8 @@ fn generate_initialization_class(
             // append the library name
             let next = LabelId::new();
             let is_jar = LabelId::new();
-            let versioned_name = format!(
-                "{}-{}",
-                &autoload_prefix.native_library_name, &autoload_prefix.version
-            );
+            let versioned_name =
+                format!("{}-{}", &autoload_prefix.native_library_name, &autoload_prefix.version);
             code.aload(var_builder)
                 .iload(arg_is_jar)
                 .iconst(0)
@@ -502,10 +497,7 @@ fn generate_initialization_class(
             .label(is_already_init)
             .vreturn();
         code.label(is_poisoned);
-        throw(
-            &mut code,
-            "Native library already failed to load, refusing to try again.",
-        );
+        throw(&mut code, "Native library already failed to load, refusing to try again.");
     }
 
     // public static void init()

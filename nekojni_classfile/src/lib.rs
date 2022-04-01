@@ -16,7 +16,6 @@ use byteorder::{WriteBytesExt, BE};
 use enumset::EnumSet;
 use nekojni_signatures::{ClassName, MethodSig, Type};
 use std::{
-    hash::Hasher,
     io::{Cursor, Error, Write},
     ops::{Deref, DerefMut},
 };

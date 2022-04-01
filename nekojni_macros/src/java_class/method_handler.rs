@@ -94,10 +94,7 @@ fn process_method_args(
     sig: &mut Signature,
 ) -> Result<(FuncSelfMode, Vec<FuncArgMode>)> {
     if sig.inputs.is_empty() {
-        error(
-            sig.span(),
-            "All Java-related functions must have at least one parameter.",
-        )?;
+        error(sig.span(), "All Java-related functions must have at least one parameter.")?;
     }
 
     let nekojni_internal = &ctx.internal;
@@ -161,10 +158,7 @@ fn method_wrapper_java(
     item: &mut ImplItemMethod,
 ) -> Result<bool> {
     if !item.block.stmts.is_empty() {
-        error(
-            item.block.span(),
-            "extern \"Java\" functions must have an empty body.",
-        )?;
+        error(item.block.span(), "extern \"Java\" functions must have an empty body.")?;
     }
     let (self_mode, args) = process_method_args(ctx, components, &mut item.sig)?;
     if self_mode == FuncSelfMode::EnvMut {
@@ -325,10 +319,7 @@ pub(crate) fn method_wrapper(
     item: &mut ImplItemMethod,
 ) -> Result<bool> {
     if item.sig.generics.params.iter().next().is_some() {
-        error(
-            item.sig.generics.span(),
-            "`#[jni_exports]` may not contain generic functions.",
-        )?;
+        error(item.sig.generics.span(), "`#[jni_exports]` may not contain generic functions.")?;
     }
 
     // process the method's attributes

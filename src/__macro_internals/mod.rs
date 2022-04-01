@@ -4,12 +4,14 @@ mod return_ty;
 
 pub use crate::{
     internal::{globals::set_default_exception_class, panicking::catch_panic_jni},
-    java_class::{exports, object_id::IdManager, JavaClassImpl, RustContents},
+    java_class::{exports, JavaClassImpl, RustContents},
 };
+pub use nekojni_classfile::{CFlags, FFlags, MFlags};
 pub use once::OnceCache;
 pub use registration::*;
 pub use return_ty::ImportReturnTy;
 
+pub use enumset;
 pub use jni;
 pub use parking_lot;
 pub use std;

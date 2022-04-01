@@ -37,11 +37,8 @@ const ATTR_OK_STR: &str = concat!(
 );
 
 fn smart_err_attr(attr: SynTokenStream, item: SynTokenStream, error: &str) -> SynTokenStream {
-    syn::Error::new(
-        stream_span(if attr.is_empty() { item } else { attr }),
-        error,
-    )
-    .to_compile_error()
+    syn::Error::new(stream_span(if attr.is_empty() { item } else { attr }), error)
+        .to_compile_error()
 }
 fn is_handler_valid(attr: SynTokenStream) -> bool {
     if attr.clone().into_iter().count() != 1 {

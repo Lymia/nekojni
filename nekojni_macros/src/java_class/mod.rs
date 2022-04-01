@@ -3,7 +3,6 @@ mod method_handler;
 use crate::{errors::*, utils::*, MacroCtx};
 use darling::FromAttributes;
 use nekojni_signatures::ClassName;
-use pest::Token;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{parse2, spanned::Spanned, ImplItem, ItemImpl, Type};
@@ -170,14 +169,6 @@ pub fn jni_export(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
             impl<'env> #nekojni::JavaClass<'env> for #impl_ty { }
             impl<'env> #nekojni_internal::RustContents<'env> for #impl_ty {
                 const ID_FIELD: &'static str = "$$njit$id"; // TODO: Make this reactive to the type.
-                fn get_manager() -> &'static #nekojni_internal::IdManager<
-                    #nekojni_internal::parking_lot::RwLock<Self>
-                > {
-                    static MANAGER: #nekojni_internal::IdManager<
-                        #nekojni_internal::parking_lot::RwLock<#impl_ty>
-                    > = #nekojni_internal::IdManager::new();
-                    &MANAGER
-                }
             }
 
             #[allow(unused)]

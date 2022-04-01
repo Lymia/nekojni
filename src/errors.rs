@@ -146,13 +146,7 @@ impl Display for Error {
         if self.0.data.is_validation_message() {
             Display::fmt(&self.0.data, f)
         } else {
-            write!(
-                f,
-                "{} (at {}:{})",
-                self.0.data,
-                self.0.location.file(),
-                self.0.location.line()
-            )
+            write!(f, "{} (at {}:{})", self.0.data, self.0.location.file(), self.0.location.line())
         }
     }
 }

@@ -3,7 +3,6 @@ use byteorder::{WriteBytesExt, BE};
 use nekojni_signatures::{ClassName, MethodSig, ReturnType, Type};
 use std::{
     collections::HashMap,
-    hash::Hasher,
     io::{Cursor, Error, Write},
     sync::atomic::{AtomicUsize, Ordering},
 };
@@ -117,22 +116,16 @@ impl MethodWriter {
     }
 
     pub fn invokeinterface(&mut self, class: &ClassName, name: &str, sig: &MethodSig) -> &mut Self {
-        self.push_instr(Instruction::invokeinterface(InvokeData::new(
-            class, name, sig,
-        )))
+        self.push_instr(Instruction::invokeinterface(InvokeData::new(class, name, sig)))
     }
     pub fn invokespecial(&mut self, class: &ClassName, name: &str, sig: &MethodSig) -> &mut Self {
-        self.push_instr(Instruction::invokespecial(InvokeData::new(
-            class, name, sig,
-        )))
+        self.push_instr(Instruction::invokespecial(InvokeData::new(class, name, sig)))
     }
     pub fn invokestatic(&mut self, class: &ClassName, name: &str, sig: &MethodSig) -> &mut Self {
         self.push_instr(Instruction::invokestatic(InvokeData::new(class, name, sig)))
     }
     pub fn invokevirtual(&mut self, class: &ClassName, name: &str, sig: &MethodSig) -> &mut Self {
-        self.push_instr(Instruction::invokevirtual(InvokeData::new(
-            class, name, sig,
-        )))
+        self.push_instr(Instruction::invokevirtual(InvokeData::new(class, name, sig)))
     }
 
     pub fn new(&mut self, ty: &ClassName) -> &mut Self {
@@ -218,11 +211,7 @@ impl FieldData {
             class: class.display_jni().to_string(),
             name: name.to_string(),
             desc: ty.display_jni().to_string(),
-            slots: if ty == &Type::Double || ty == &Type::Long {
-                2
-            } else {
-                1
-            },
+            slots: if ty == &Type::Double || ty == &Type::Long { 2 } else { 1 },
         }
     }
     fn make_ref(&self, pool: &mut PoolWriter) -> PoolId {

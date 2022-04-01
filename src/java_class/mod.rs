@@ -33,5 +33,4 @@ pub trait JavaClassImpl<'env>: Sized + Send + Sync + 'static {
 
 pub trait RustContents<'env>: JavaClass<'env> {
     const ID_FIELD: &'static str;
-    fn get_manager() -> &'static object_id::IdManager<RwLock<Self>>;
 }

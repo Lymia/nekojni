@@ -1,17 +1,10 @@
-use nekojni_signatures::{ClassName, MethodSig, Type};
-
-/// The visibility of an exported Java type.
-#[derive(Debug)]
-pub enum JavaVisibility {
-    /// Represents a `public` visibility
-    Public,
-    /// Represents a `protected` visibility.
-    Protected,
-    /// Represents a default visibility.
-    PackagePrivate,
-    /// Represents a `private` visibility.
-    Private,
-}
+use crate::{errors::*, JniEnv};
+use enumset::EnumSet;
+use jni::{signature::JavaType::Method, strings::JNIString, NativeMethod};
+use nekojni_classfile::{CFlags, FFlags, MFlags};
+use nekojni_codegen::ClassExporter;
+use nekojni_signatures::{ClassName, MethodSig, StaticList, Type};
+use std::{collections::HashMap, ffi::c_void};
 
 /// Represents something exported from a Java class defined in Rust.
 ///
@@ -19,52 +12,137 @@ pub enum JavaVisibility {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ExportedItem {
-    /// A constructor exported to JVM code from JNI.
     NativeConstructor {
-        /// The Java type signature of the method.
-        ///
-        /// The return type must be `void` for this to work correctly.
+        flags: EnumSet<MFlags>,
         signature: MethodSig<'static>,
+
+        native_name: &'static str,
+        native_signature: MethodSig<'static>,
+        super_signature: MethodSig<'static>,
     },
-    /// A method exported to JVM code from JNI.
-    NativeMethod {
-        /// The name of the method exposed publicly to Java code.
-        java_name: &'static str,
-        /// The name of the native method exported by the Rust module.
-        ///
-        /// If this is equal to `java_name`, no proxy function will be generated, and the native
-        /// function will be directly exposed to Java code.
-        native_fn_name: &'static str,
-        /// The visibility of the method.
-        visibility: JavaVisibility,
-        /// The Java type signature of the method.
+    NativeMethodWrapper {
+        flags: EnumSet<MFlags>,
+        name: &'static str,
         signature: MethodSig<'static>,
+
+        native_name: &'static str,
+        has_id_param: bool,
     },
-    /// A field stored in the Java class, and exposed to Rust code.
-    ///
-    /// This automatically generates the field on the Java side.
     JavaField {
-        /// The name of the Java field.
-        java_name: &'static str,
-        /// The visibility of the Java field.
-        visibility: JavaVisibility,
-        /// The Java type of the field.
-        ty: Type<'static>,
+        flags: EnumSet<FFlags>,
+        name: &'static str,
+        field: Type<'static>,
     },
+}
+
+/// A native method exported from JNI.
+pub struct RustNativeMethod {
+    pub name: &'static str,
+    pub sig: MethodSig<'static>,
+    pub fn_ptr: *mut c_void,
+    pub is_static: bool,
 }
 
 /// A trait representing a Java class that may be exported via codegen.
 #[derive(Debug)]
 pub struct CodegenClass {
-    /// The name of this class.
+    pub access: EnumSet<CFlags>,
     pub name: ClassName<'static>,
-    /// The visibility of this class.
-    pub visibility: JavaVisibility,
-    /// The name of this class' superclass, or `None` if there isn't one.
     pub super_class: Option<ClassName<'static>>,
-    /// A list of interfaces this class implements.
     pub implements: Option<ClassName<'static>>,
 
-    /// A function that returns a list of items exported into Java.
+    pub id_field_name: &'static str,
+    pub late_init: &'static [&'static str],
+
     pub get_exports: fn() -> Vec<ExportedItem>,
+    pub get_native_methods: fn() -> Vec<RustNativeMethod>,
+}
+impl CodegenClass {
+    pub fn register_natives(&self, env: &JniEnv) -> Result<()> {
+        let mut methods = Vec::new();
+        for method in (self.get_native_methods)() {
+            let name =
+                format!("njni$${}${}", method.name, if method.is_static { "s" } else { "m" });
+            methods.push(NativeMethod {
+                name: JNIString::from(name),
+                sig: JNIString::from(method.sig.display_jni().to_string()),
+                fn_ptr: method.fn_ptr,
+            });
+        }
+        env.register_native_methods(&self.name.display_jni().to_string(), &methods)?;
+        Ok(())
+    }
+
+    pub fn generate_class(&self) -> Vec<(String, Vec<u8>)> {
+        let mut class = ClassExporter::new(
+            self.access,
+            &self.name,
+            match &self.super_class {
+                None => {
+                    static OBJECT_CN: ClassName<'static> =
+                        ClassName::new(&["java", "lang"], "String");
+                    &OBJECT_CN
+                }
+                Some(v) => v,
+            },
+            self.id_field_name,
+        );
+
+        for exports in (self.get_exports)() {
+            match exports {
+                ExportedItem::NativeConstructor {
+                    flags,
+                    signature,
+                    native_name,
+                    native_signature,
+                    super_signature,
+                } => {
+                    class.export_constructor(
+                        flags,
+                        &signature,
+                        native_name,
+                        &native_signature,
+                        &super_signature,
+                        self.late_init,
+                    );
+                }
+                ExportedItem::NativeMethodWrapper {
+                    flags,
+                    name,
+                    signature,
+                    native_name,
+                    has_id_param,
+                } => {
+                    let mut params = Vec::new();
+                    if has_id_param {
+                        params.push(Type::Int);
+                    }
+                    for param in signature.params.as_slice() {
+                        params.push(param.clone());
+                    }
+                    let native_sig = MethodSig {
+                        ret_ty: signature.ret_ty.clone(),
+                        params: StaticList::Borrowed(&params),
+                    };
+
+                    class.export_native_wrapper(
+                        flags,
+                        name,
+                        &signature,
+                        native_name,
+                        &native_sig,
+                        has_id_param,
+                    );
+                }
+                ExportedItem::JavaField { flags, name, field } => {
+                    class.export_field(flags, name, &field);
+                }
+            }
+        }
+        for method in (self.get_native_methods)() {
+            class.export_native(method.name, &method.sig, method.is_static);
+        }
+
+        class.into_vec()
+    }
 }

@@ -25,11 +25,8 @@ pub fn generate_shutdown_handler(discriminator: &str) -> (String, Vec<u8>) {
 
     // private <init>() { }
     {
-        let method = writer.method(
-            MFlags::Private | MFlags::Synthetic,
-            "<init>",
-            &MethodSig::void(&[]),
-        );
+        let method =
+            writer.method(MFlags::Private | MFlags::Synthetic, "<init>", &MethodSig::void(&[]));
         method
             .code()
             .aload(0)
