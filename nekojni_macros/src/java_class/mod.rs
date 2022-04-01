@@ -150,7 +150,7 @@ pub fn jni_export(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
                         #nekojni::signatures::BasicType::Class(#class_name)
                     );
                 const CODEGEN_INFO: Option<#nekojni_internal::exports::CodegenClass> = None;
-                fn register_methods(&self, env: #jni::JNIEnv) -> #nekojni::Result<()> {
+                fn register_methods(&self, env: #nekojni::JniEnv) -> #nekojni::Result<()> {
                     // TODO: register_methods
                     #nekojni::Result::Ok(())
                 }
@@ -158,16 +158,16 @@ pub fn jni_export(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
                     #nekojni_internal::default_ptr_fail()
                 }
                 fn create_jni_ref(
-                    env: #jni::JNIEnv<'env>,
+                    env: #nekojni::JniEnv<'env>,
                     obj: #jni::objects::JObject<'env>,
                 ) -> #nekojni::Result<#nekojni::JniRef<'env, Self>>
-                    where Self: #nekojni::java_class::JavaClass<'env>
+                    where Self: #nekojni::JavaClass<'env>
                 {
                     #nekojni_internal::jni_ref::new_rust(env, obj)
                 }
                 type Cache = ExportedClassCache<'env>;
             }
-            impl<'env> #nekojni::java_class::JavaClass<'env> for #impl_ty { }
+            impl<'env> #nekojni::JavaClass<'env> for #impl_ty { }
             impl<'env> #nekojni_internal::RustContents<'env> for #impl_ty {
                 const ID_FIELD: &'static str = "$$njit$id"; // TODO: Make this reactive to the type.
                 fn get_manager() -> &'static #nekojni_internal::IdManager<

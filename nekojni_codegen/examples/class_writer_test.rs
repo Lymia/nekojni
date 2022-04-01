@@ -4,7 +4,7 @@ use std::{collections::HashMap, fs::File, io::Write, path::PathBuf};
 
 fn main() {
     let mut classes = HashMap::new();
-    nekojni_codegen::generate_initialization_class(
+    nekojni_codegen::generate(
         ClassName::new(&[], "PrincessTest"),
         &mut classes,
         Some(AutoloadPath {

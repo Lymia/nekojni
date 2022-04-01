@@ -19,10 +19,18 @@ pub struct AutoloadPath {
     pub version: String,
 }
 
-pub fn generate_initialization_class(
+pub fn generate(
     name: ClassName,
     classes: &mut HashMap<String, Vec<u8>>,
     autoload_prefix: Option<AutoloadPath>,
+) {
+    generate_initialization_class(name.clone(), classes, &autoload_prefix);
+}
+
+fn generate_initialization_class(
+    name: ClassName,
+    classes: &mut HashMap<String, Vec<u8>>,
+    autoload_prefix: &Option<AutoloadPath>,
 ) {
     let mut writer = ClassWriter::new(CFlags::Public | CFlags::Synthetic | CFlags::Final, &name);
     writer.source_file("native_init.rs");

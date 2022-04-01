@@ -11,6 +11,7 @@ mod errors;
 pub mod __macro_internals;
 
 mod internal;
+mod java_class;
 mod jni_env;
 
 pub use errors::{Error, Result};
@@ -22,9 +23,6 @@ pub use jni_env::JniEnv;
 
 /// The module containing the types used for conversions between Java and Rust types.
 pub mod conversions;
-
-/// The module containing code relating to the representation of types exported from Java.
-pub mod java_class;
 
 #[doc(inline)]
 /// The module containing types that represent Java type signatures.
@@ -85,7 +83,7 @@ macro_rules! jni_module {
                 /// This is automatically called from the static initializer of all functions in
                 /// the library with native functions, and hence should never need to be directly
                 /// called.
-                pub fn initialize(ctx: jni::JNIEnv) {
+                pub fn initialize(ctx: $crate::JniEnv) {
 
                 }
             }

@@ -1,4 +1,4 @@
-use jni::JNIEnv;
+use crate::jni_env::JniEnv;
 use std::{
     backtrace::Backtrace,
     borrow::Cow,
@@ -105,8 +105,8 @@ impl Error {
         crate::internal::panicking::catch_panic(func)
     }
 
-    /// Emits an error into an [`JNIEnv`]
-    pub fn emit_error(&self, env: JNIEnv, exception_class: &str) -> Result<()> {
+    /// Emits an error into an [`JniEnv`]
+    pub fn emit_error(&self, env: JniEnv, exception_class: &str) -> Result<()> {
         let class = match &self.0.override_except_class {
             Some(x) => x,
             None => exception_class,

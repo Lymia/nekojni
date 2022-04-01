@@ -39,7 +39,7 @@ enum InnerRef<T> {
 pub struct JniRef<'env, T: JavaClass<'env>, R: JniRefType = JniRefRead> {
     this: JObject<'env>,
     inner: InnerRef<T>,
-    env: JNIEnv<'env>,
+    env: JniEnv<'env>,
     phantom: PhantomData<R>,
     pub(crate) cache: T::Cache,
 }
@@ -49,8 +49,8 @@ impl<'env, T: JavaClass<'env>, R: JniRefType> JniRef<'env, T, R> {
         this.this
     }
 
-    /// Returns the [`JNIEnv`] associated with this pointer.
-    pub fn env(this: &Self) -> JNIEnv<'env> {
+    /// Returns the [`JniEnv`] associated with this pointer.
+    pub fn env(this: &Self) -> JniEnv<'env> {
         this.env
     }
 }
@@ -97,15 +97,15 @@ impl<'env, T: JavaClass<'env>> DerefMut for JniRef<'env, T, JniRefWrite> {
     }
 }
 
-impl<'a, 'env: 'a, T: JavaClass<'env>> AsRef<JNIEnv<'env>> for &'a JniRef<'env, T> {
-    fn as_ref(&self) -> &JNIEnv<'env> {
+impl<'a, 'env: 'a, T: JavaClass<'env>> AsRef<JniEnv<'env>> for &'a JniRef<'env, T> {
+    fn as_ref(&self) -> &JniEnv<'env> {
         &self.env
     }
 }
 
 /// Creates a new [`JniRef`] from a JNI environment and a java object containing an ID.
 pub fn new_rust<'env, T: RustContents<'env>>(
-    env: JNIEnv<'env>,
+    env: JniEnv<'env>,
     this: JObject<'env>,
 ) -> Result<JniRef<'env, T>> {
     let id = match env.get_field(this, T::ID_FIELD, "I")? {
@@ -125,7 +125,7 @@ pub fn new_rust<'env, T: RustContents<'env>>(
 
 /// Creates a new [`JniRef`] from a JNI environment and a java object.
 pub fn new_wrapped<'env, T: JavaClass<'env>>(
-    env: JNIEnv<'env>,
+    env: JniEnv<'env>,
     this: JObject<'env>,
 ) -> Result<JniRef<'env, T>> {
     Ok(JniRef {

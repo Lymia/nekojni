@@ -16,9 +16,9 @@ pub use std;
 
 use crate::{
     java_class::{jni_ref::JniRefType, JavaClass},
+    jni_env::JniEnv,
     JniRef,
 };
-use jni::JNIEnv;
 
 pub mod jni_ref {
     pub use crate::java_class::jni_ref::{new_rust, new_wrapped};
@@ -46,8 +46,8 @@ pub fn check_jniref<'env, T: JavaClass<'env>, R: JniRefType>(_: JniRef<'env, T, 
     unreachable!()
 }
 
-/// Function for typechecking [`JNIEnv`]s
-pub fn check_jnienv(_: JNIEnv) {
+/// Function for typechecking [`JniEnv`]s
+pub fn check_jnienv(_: JniEnv) {
     unreachable!()
 }
 
