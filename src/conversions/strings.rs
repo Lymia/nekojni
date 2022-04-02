@@ -1,17 +1,19 @@
 use super::*;
+use crate::internal::panicking::MethodReturn;
 use jni::objects::{JObject, JString};
 
-impl<'env> JavaConversion<'env> for str {
+impl JavaConversionType for str {
+    type JavaType = jobject;
+}
+unsafe impl<'env> JavaConversion<'env> for str {
     const JAVA_TYPE: Type<'static> = Type::class(&["java", "lang"], "String");
-    type JavaType = JString<'env>;
     fn to_java(&self, env: JniEnv<'env>) -> Self::JavaType {
-        env.new_string(self)
-            .expect("could not convert jstring->String")
+        (*env.new_string(self).unwrap()).into_inner()
     }
     fn to_java_value(&self, env: JniEnv<'env>) -> JValue<'env> {
         JValue::Object(JObject::from(self.to_java(env)))
     }
-    fn from_java_ref<R>(
+    unsafe fn from_java_ref<R>(
         java: Self::JavaType,
         env: JniEnv<'env>,
         func: impl FnOnce(&Self) -> R,
@@ -19,7 +21,7 @@ impl<'env> JavaConversion<'env> for str {
         let str = String::from_java(java, env);
         func(&str)
     }
-    fn from_java_mut<R>(
+    unsafe fn from_java_mut<R>(
         java: Self::JavaType,
         env: JniEnv<'env>,
         func: impl FnOnce(&mut Self) -> R,
@@ -28,13 +30,15 @@ impl<'env> JavaConversion<'env> for str {
         func(&mut str)
     }
     fn null() -> Self::JavaType {
-        String::null()
+        std::ptr::null_mut()
     }
 }
 
-impl<'env> JavaConversion<'env> for String {
+impl JavaConversionType for String {
+    type JavaType = jobject;
+}
+unsafe impl<'env> JavaConversion<'env> for String {
     const JAVA_TYPE: Type<'static> = Type::class(&["java", "lang"], "String");
-    type JavaType = JString<'env>;
     fn to_java(&self, env: JniEnv<'env>) -> Self::JavaType {
         str::to_java(self.as_str(), env)
     }
@@ -43,52 +47,71 @@ impl<'env> JavaConversion<'env> for String {
     }
     impl_borrowed_from_owned!('env);
     fn null() -> Self::JavaType {
-        JString::from(std::ptr::null_mut())
+        std::ptr::null_mut()
     }
 }
-impl<'env> JavaConversionOwned<'env> for String {
-    fn from_java(java: Self::JavaType, env: JniEnv<'env>) -> Self {
-        env.get_string(java.into())
-            .expect("could not convert String->jstring")
-            .into()
+unsafe impl<'env> JavaConversionOwned<'env> for String {
+    unsafe fn from_java(java: Self::JavaType, env: JniEnv<'env>) -> Self {
+        env.get_string(java.into()).unwrap().into()
     }
     fn from_java_value(java: JValue<'env>, env: JniEnv<'env>) -> Result<Self> {
-        Ok(Self::from_java(JString::from(java.l()?.into_inner()), env))
+        Ok(unsafe { Self::from_java(java.l()?.into_inner(), env) })
     }
 }
 
-impl<'env> JavaConversion<'env> for Vec<u8> {
+impl JavaConversionType for [u8] {
+    type JavaType = jobject;
+}
+unsafe impl<'env> JavaConversion<'env> for [u8] {
     const JAVA_TYPE: Type<'static> = Type::Boolean.array();
-    type JavaType = JObject<'env>;
     fn to_java(&self, env: JniEnv<'env>) -> Self::JavaType {
-        assert!(self.len() < jint::MAX as usize);
-        let array = env
-            .new_byte_array(self.len() as i32)
-            .expect("could not create byte[]");
-        env.set_byte_array_region(array, 0, bytemuck::cast_slice(self.as_slice()))
-            .expect("Failed to copy data into byte array.");
-        JObject::from(array)
+        env.byte_array_from_slice(&self).unwrap().into_inner()
+    }
+    fn to_java_value(&self, env: JniEnv<'env>) -> JValue<'env> {
+        JValue::Object(JObject::from(self.to_java(env)))
+    }
+    unsafe fn from_java_ref<R>(
+        java: Self::JavaType,
+        env: JniEnv<'env>,
+        func: impl FnOnce(&Self) -> R,
+    ) -> R {
+        let vec = Vec::<u8>::from_java(java, env);
+        func(&vec)
+    }
+    unsafe fn from_java_mut<R>(
+        java: Self::JavaType,
+        env: JniEnv<'env>,
+        func: impl FnOnce(&mut Self) -> R,
+    ) -> R {
+        let mut vec = Vec::<u8>::from_java(java, env);
+        func(&mut vec)
+    }
+    fn null() -> Self::JavaType {
+        std::ptr::null_mut()
+    }
+}
+
+impl JavaConversionType for Vec<u8> {
+    type JavaType = jobject;
+}
+unsafe impl<'env> JavaConversion<'env> for Vec<u8> {
+    const JAVA_TYPE: Type<'static> = Type::Boolean.array();
+    fn to_java(&self, env: JniEnv<'env>) -> Self::JavaType {
+        self.as_slice().to_java(env)
     }
     fn to_java_value(&self, env: JniEnv<'env>) -> JValue<'env> {
         JValue::Object(JObject::from(self.to_java(env)))
     }
     impl_borrowed_from_owned!('env);
     fn null() -> Self::JavaType {
-        JObject::from(std::ptr::null_mut())
+        std::ptr::null_mut()
     }
 }
-impl<'env> JavaConversionOwned<'env> for Vec<u8> {
-    fn from_java(java: Self::JavaType, env: JniEnv<'env>) -> Self {
-        let mut new_vec = vec![0u8; env.get_array_length(java.into_inner()).unwrap() as usize];
-        env.get_byte_array_region(
-            java.into_inner(),
-            0,
-            bytemuck::cast_slice_mut(new_vec.as_mut_slice()),
-        )
-        .unwrap();
-        new_vec
+unsafe impl<'env> JavaConversionOwned<'env> for Vec<u8> {
+    unsafe fn from_java(java: Self::JavaType, env: JniEnv<'env>) -> Self {
+        env.convert_byte_array(java.into_inner()).unwrap()
     }
     fn from_java_value(java: JValue<'env>, env: JniEnv<'env>) -> Result<Self> {
-        Ok(Self::from_java(java.l()?, env))
+        Ok(unsafe { Self::from_java(java.l()?.into_inner(), env) })
     }
 }

@@ -4,14 +4,14 @@ use nekojni_signatures::*;
 
 macro_rules! impl_borrowed_from_owned {
     ($env:lifetime) => {
-        fn from_java_ref<R>(
+        unsafe fn from_java_ref<R>(
             java: Self::JavaType,
             env: JniEnv<$env>,
             func: impl FnOnce(&Self) -> R,
         ) -> R {
             func(&Self::from_java(java, env))
         }
-        fn from_java_mut<R>(
+        unsafe fn from_java_mut<R>(
             java: Self::JavaType,
             env: JniEnv<$env>,
             func: impl FnOnce(&mut Self) -> R,
@@ -22,32 +22,56 @@ macro_rules! impl_borrowed_from_owned {
 }
 
 mod basic;
+mod java_type;
 mod jni_ref;
 mod strings;
 
+pub use java_type::*;
+
+/// Helper type that proves [`JavaConversion`]s with different lifetimes return the same value.
+pub trait JavaConversionType {
+    /// The type used for the exported function signature.
+    type JavaType: JniAbiType;
+}
+
 /// Main trait that converts between Java and Rust types.
-pub trait JavaConversion<'env> {
+///
+/// # Safety
+///
+/// This is marked unsafe as returning raw pointers is inherently unsafe, despite the fact that
+/// the `jni` crate allows this to be done without any unsafety. The value of `JavaType` must be
+/// from the input [`JniEnv`] or else there will be an use-after-free.
+pub unsafe trait JavaConversion<'env>: JavaConversionType {
     /// The Java type used for this Rust object.
     const JAVA_TYPE: Type<'static>;
 
-    /// The type used for the exported function signature.
-    type JavaType;
-
     /// Convert the Rust type into a Java type.
+    ///
+    /// # Safety
+    ///
+    /// The value returned must be valid for the lifetime of [`JniEnv`].
     fn to_java(&self, env: JniEnv<'env>) -> Self::JavaType;
 
     /// Convert the Rust type into a Java method parameter.
     fn to_java_value(&self, env: JniEnv<'env>) -> JValue<'env>;
 
     /// Convert the Java type into an borrowed Rust type.
-    fn from_java_ref<R>(
+    ///
+    /// # Safety
+    ///
+    /// The value passed in must be valid for the lifetime of the [`JniEnv`].
+    unsafe fn from_java_ref<R>(
         java: Self::JavaType,
         env: JniEnv<'env>,
         func: impl FnOnce(&Self) -> R,
     ) -> R;
 
     /// Convert the Java type into an mutably borrowed Rust type.
-    fn from_java_mut<R>(
+    ///
+    /// # Safety
+    ///
+    /// The value passed in must be valid for the lifetime of the [`JniEnv`].
+    unsafe fn from_java_mut<R>(
         java: Self::JavaType,
         env: JniEnv<'env>,
         func: impl FnOnce(&mut Self) -> R,
@@ -59,43 +83,57 @@ pub trait JavaConversion<'env> {
 }
 
 /// Trait that allows converting Java types into owned Rust types.
-pub trait JavaConversionOwned<'env>: JavaConversion<'env> + Sized {
+///
+/// # Safety
+///
+/// This is marked unsafe as returning raw pointers is inherently unsafe, despite the fact that
+/// the `jni` crate allows this to be done without any unsafety. The value of `JavaType` must be
+/// from the input [`JniEnv`] or else there will be an use-after-free.
+pub unsafe trait JavaConversionOwned<'env>: JavaConversion<'env> + Sized {
     /// Convert the Java type into an owned Rust type.
-    fn from_java(java: Self::JavaType, env: JniEnv<'env>) -> Self;
+    ///
+    /// # Safety
+    ///
+    /// The value passed in must be valid for the lifetime of the [`JniEnv`].
+    unsafe fn from_java(java: Self::JavaType, env: JniEnv<'env>) -> Self;
 
     /// Convert the Java return value into an owned Rust type.
     fn from_java_value(java: JValue<'env>, env: JniEnv<'env>) -> Result<Self>;
 }
 
 /// Trait that converts Java types into Java return values.
-pub trait JavaReturnConversion<'env> {
+///
+/// # Safety
+///
+/// This is marked unsafe as returning raw pointers is inherently unsafe, despite the fact that
+/// the `jni` crate allows this to be done without any unsafety. The value of `JavaType` must be
+/// from the input [`JniEnv`] or else there will be an use-after-free.
+pub unsafe trait JavaReturnConversion<'env>: JavaConversionType {
     /// The Java type used for this Rust object.
-    const JAVA_RETURN_TYPE: ReturnType<'env>;
-
-    /// The type used for the exported function signature.
-    type JavaRetType;
+    const JAVA_RETURN_TYPE: ReturnType<'static>;
 
     /// Convert the Rust type into a Java type.
-    fn to_java_ret(&self, env: JniEnv<'env>) -> Self::JavaRetType;
+    fn to_java_ret(&self, env: JniEnv<'env>) -> Self::JavaType;
 
     /// Returns the closest thing to a null value in this type. Used as a return type for an JNI
     /// function after returning an exception.
-    fn null_ret() -> Self::JavaRetType;
+    fn null_ret() -> Self::JavaType;
 }
 
-impl<'env> JavaReturnConversion<'env> for () {
-    const JAVA_RETURN_TYPE: ReturnType<'env> = ReturnType::Void;
-    type JavaRetType = ();
-    fn to_java_ret(&self, _: JniEnv<'env>) -> Self::JavaRetType {}
-    fn null_ret() -> Self::JavaRetType {}
+impl JavaConversionType for () {
+    type JavaType = ();
 }
-impl<'env, T: JavaConversion<'env>> JavaReturnConversion<'env> for T {
-    const JAVA_RETURN_TYPE: ReturnType<'env> = ReturnType::Ty(T::JAVA_TYPE);
-    type JavaRetType = T::JavaType;
-    fn to_java_ret(&self, env: JniEnv<'env>) -> Self::JavaRetType {
+unsafe impl<'env> JavaReturnConversion<'env> for () {
+    const JAVA_RETURN_TYPE: ReturnType<'static> = ReturnType::Void;
+    fn to_java_ret(&self, _: JniEnv<'env>) -> Self::JavaType {}
+    fn null_ret() -> Self::JavaType {}
+}
+unsafe impl<'env, T: JavaConversion<'env>> JavaReturnConversion<'env> for T {
+    const JAVA_RETURN_TYPE: ReturnType<'static> = ReturnType::Ty(T::JAVA_TYPE);
+    fn to_java_ret(&self, env: JniEnv<'env>) -> Self::JavaType {
         T::to_java(self, env)
     }
-    fn null_ret() -> Self::JavaRetType {
+    fn null_ret() -> Self::JavaType {
         T::null()
     }
 }

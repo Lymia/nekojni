@@ -1,8 +1,9 @@
 use crate::{
-    conversions::{JavaConversion, JavaReturnConversion},
+    conversions::{JavaConversion, JavaConversionType, JavaReturnConversion, JniAbiType},
     errors::*,
     jni_env::JniEnv,
 };
+use jni::JNIEnv;
 use std::{any::Any, panic::AssertUnwindSafe};
 
 pub trait MethodReturn<T> {
@@ -50,6 +51,7 @@ impl<T> MethodReturn<T> for Result<T> {
         err.emit_error(env, exception_class)
     }
 }
+
 #[inline(never)]
 fn get_panic_string(e: Box<dyn Any + Send + 'static>) -> String {
     if let Some(_) = e.downcast_ref::<String>() {
@@ -82,31 +84,36 @@ pub fn catch_panic<R>(func: impl FnOnce() -> R) -> Result<R> {
 /// The function that handles the return value of object methods, and prevents panics from crossing
 /// the FFI barrier.
 #[allow(deprecated)]
-pub fn catch_panic_jni<'env, T: JavaReturnConversion<'env>, R: MethodReturn<T>>(
-    env: JniEnv<'env>,
-    func: impl FnOnce() -> R,
-) -> T::JavaRetType {
+pub fn catch_panic_jni<'env, T, R: MethodReturn<T>>(
+    env: JNIEnv<'env>,
+    func: impl FnOnce(JniEnv) -> R,
+) -> <T as JavaConversionType>::JavaType
+where
+    for<'a> T: JavaReturnConversion<'a>,
+{
     // for safety, just in case there's a bug that might cause panics in e.g. backtrace, since
     // we invoke a lot of weird stuff trying to get the panic string.
     match std::panic::catch_unwind(AssertUnwindSafe(|| {
         let exception_class = crate::internal::globals::get_default_exception_class();
-        match catch_panic(|| {
-            let result = func();
-            if result.is_error() {
-                check_fail(env.emit_error(env, exception_class));
-                T::null_ret()
-            } else {
-                result.into_inner().to_java_ret(env)
+        JniEnv::with_env(env, |env| {
+            match catch_panic(|| {
+                let result = func(env);
+                if result.is_error() {
+                    check_fail(env.emit_error(env, exception_class));
+                    T::null_ret()
+                } else {
+                    result.into_inner().to_java_ret(env)
+                }
+            }) {
+                Ok(v) => Ok(v),
+                Err(e) => {
+                    check_fail(e.emit_error(env, exception_class));
+                    Ok(T::null_ret())
+                }
             }
-        }) {
-            Ok(v) => v,
-            Err(e) => {
-                check_fail(e.emit_error(env, exception_class));
-                T::null_ret()
-            }
-        }
+        })
     })) {
-        Ok(v) => v,
-        Err(_) => std::process::abort(),
+        Ok(Ok(v)) => v,
+        _ => std::process::abort(),
     }
 }

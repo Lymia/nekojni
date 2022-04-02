@@ -15,8 +15,12 @@ pub(crate) struct JavaClassCtx {
 
     generated_items: TokenStream,
     generated_impls: TokenStream,
+    generated_private_impls: TokenStream,
     generated_type_checks: TokenStream,
     generated_exports: TokenStream,
+
+    fn_get_exports: TokenStream,
+    fn_get_native_methods: TokenStream,
 }
 impl JavaClassCtx {
     fn gensym(&mut self, prefix: &str) -> Ident {
@@ -98,8 +102,11 @@ pub fn jni_export(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
         sym_uid: 0,
         generated_items: Default::default(),
         generated_impls: Default::default(),
+        generated_private_impls: Default::default(),
         generated_type_checks: Default::default(),
         generated_exports: Default::default(),
+        fn_get_exports: Default::default(),
+        fn_get_native_methods: Default::default(),
     };
 
     // Process methods in the impl block
@@ -130,6 +137,7 @@ pub fn jni_export(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
 
     let generated_items = &components.generated_items;
     let generated_impls = &components.generated_impls;
+    let generated_private_impls = &components.generated_private_impls;
     let generated_type_checks = &components.generated_type_checks;
     let generated_exports = &components.generated_exports;
 
@@ -176,6 +184,14 @@ pub fn jni_export(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
             impl<'env> #nekojni::JavaClass<'env> for #impl_ty { }
             impl<'env> #nekojni_internal::RustContents<'env> for #impl_ty {
                 const ID_FIELD: &'static str = "$$njit$id"; // TODO: Make this reactive to the type.
+            }
+
+            #[allow(unused)]
+            mod nekojni__private {
+                use super::*;
+                impl #impl_ty {
+                    #generated_private_impls
+                }
             }
 
             #[allow(unused)]

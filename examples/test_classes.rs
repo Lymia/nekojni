@@ -14,6 +14,7 @@ impl TestClass {
     pub extern "Java" fn test_func_3(env: &JniEnv, a: u32) {}
     pub extern "Java" fn test_func_4(self: &JniRef<Self>, a: u32, b: u32, c: u32) -> Result<u32> {}
     pub extern "Java" fn test_func_5(env: JniEnv, a: u32) {}
+    pub extern "Java" fn test_func_6(env: &JniEnv, a: u32) -> u32 {}
 
     pub fn increment_foo(&mut self) -> u32 {
         self.counter += 1;

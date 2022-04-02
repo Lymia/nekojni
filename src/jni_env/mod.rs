@@ -1,6 +1,6 @@
 use crate::{errors::*, java_class::object_id::IdManager, JavaClass};
 use chashmap::CHashMap;
-use jni::{strings::JNIString, JNIEnv, NativeMethod};
+use jni::{strings::JNIString, sys::jclass, JNIEnv, NativeMethod};
 use lazy_static::lazy_static;
 use parking_lot::{lock_api::ArcRwLockUpgradableReadGuard, RwLock};
 use std::{
@@ -61,7 +61,7 @@ fn jni_new_ref(env: JNIEnv) -> Result<Arc<JniEnvCacheData>> {
         env.register_native_methods(&class_name, &[NativeMethod {
             name: JNIString::from("native_shutdown"),
             sig: JNIString::from("()V"),
-            fn_ptr: jni_shutdown_fn as *mut _,
+            fn_ptr: jni_shutdown as *mut _,
         }])?;
 
         // define the shutdown hook class and install it
@@ -80,14 +80,13 @@ fn jni_new_ref(env: JNIEnv) -> Result<Arc<JniEnvCacheData>> {
         Ok(write.data.clone())
     }
 }
-fn jni_shutdown_fn(env: JniEnv) {
-    crate::internal::panicking::catch_panic_jni(env, || jni_shutdown(env))
-}
-fn jni_shutdown(env: JniEnv) {
-    let offset = vm_offset(*env).expect("Could not find offset?");
-    CACHES
-        .remove(&offset)
-        .expect("JNIEnv has already been shutdown?");
+extern "system" fn jni_shutdown(env: JNIEnv, class: jclass) {
+    crate::internal::panicking::catch_panic_jni(env, |env| {
+        let offset = vm_offset(*env).expect("Could not find offset?");
+        CACHES
+            .remove(&offset)
+            .expect("JNIEnv has already been shutdown?");
+    })
 }
 
 /// A wrapper for a [`JNIEnv`] that implements some additional functionality used by nekojni.
@@ -99,10 +98,11 @@ pub struct JniEnv<'env> {
 }
 impl<'env> JniEnv<'env> {
     /// Creates a new [`JniEnv`] wrapping this class.
-    pub fn with_env<R>(env: JNIEnv, func: impl FnOnce(JniEnv) -> Result<R>) -> Result<R> {
+    pub(crate) fn with_env<R>(env: JNIEnv, func: impl FnOnce(JniEnv) -> Result<R>) -> Result<R> {
         let data = jni_new_ref(env)?;
         let transient_cache = TransientCache::default();
-        func(JniEnv { env, cache: &data, transient_cache: &transient_cache })
+        let ret_val = func(JniEnv { env, cache: &data, transient_cache: &transient_cache });
+        ret_val
     }
 
     /// Returns an instance of an object for this entire JVM.

@@ -1,8 +1,10 @@
 use super::*;
 
-impl<'env> JavaConversion<'env> for bool {
-    const JAVA_TYPE: Type<'static> = Type::Boolean;
+impl JavaConversionType for bool {
     type JavaType = jboolean;
+}
+unsafe impl<'env> JavaConversion<'env> for bool {
+    const JAVA_TYPE: Type<'static> = Type::Boolean;
     fn to_java(&self, _env: JniEnv<'env>) -> Self::JavaType {
         *self as u8
     }
@@ -14,20 +16,22 @@ impl<'env> JavaConversion<'env> for bool {
         0
     }
 }
-impl<'env> JavaConversionOwned<'env> for bool {
-    fn from_java(java: Self::JavaType, _: JniEnv<'env>) -> Self {
+unsafe impl<'env> JavaConversionOwned<'env> for bool {
+    unsafe fn from_java(java: Self::JavaType, _: JniEnv<'env>) -> Self {
         java != 0
     }
     fn from_java_value(java: JValue<'env>, env: JniEnv<'env>) -> Result<Self> {
-        Ok(Self::from_java(java.z()? as jboolean, env))
+        Ok(unsafe { Self::from_java(java.z()? as jboolean, env) })
     }
 }
 
 macro_rules! simple_conversion {
     ($(($rust_ty:ty, $jni_ty:ty, $java_ty:expr, $default:expr, $class:ident, $conv:ident))*) => {$(
-        impl<'env> JavaConversion<'env> for $rust_ty {
-            const JAVA_TYPE: Type<'static> = $java_ty;
+        impl JavaConversionType for $rust_ty {
             type JavaType = $jni_ty;
+        }
+        unsafe impl<'env> JavaConversion<'env> for $rust_ty {
+            const JAVA_TYPE: Type<'static> = $java_ty;
             fn to_java(&self, _env: JniEnv<'env>) -> Self::JavaType {
                 *self
             }
@@ -39,12 +43,12 @@ macro_rules! simple_conversion {
                 $default
             }
         }
-        impl<'env> JavaConversionOwned<'env> for $rust_ty {
-            fn from_java(java: Self::JavaType, _env: JniEnv<'env>) -> Self {
+        unsafe impl<'env> JavaConversionOwned<'env> for $rust_ty {
+            unsafe fn from_java(java: Self::JavaType, _env: JniEnv<'env>) -> Self {
                 java
             }
             fn from_java_value(java: JValue<'env>, env: JniEnv<'env>) -> Result<Self> {
-                Ok(Self::from_java(java.$conv()?, env))
+                Ok(unsafe { Self::from_java(java.$conv()?, env) })
             }
         }
     )*}
@@ -56,9 +60,11 @@ simple_conversion! {
 
 macro_rules! numeric_conversion {
     ($(($rust_ty:ty, $jni_ty:ty, $java_ty:expr, $class:ident, $conv:ident))*) => {$(
-        impl<'env> JavaConversion<'env> for $rust_ty {
-            const JAVA_TYPE: Type<'static> = $java_ty;
+        impl JavaConversionType for $rust_ty {
             type JavaType = $jni_ty;
+        }
+        unsafe impl<'env> JavaConversion<'env> for $rust_ty {
+            const JAVA_TYPE: Type<'static> = $java_ty;
             fn to_java(&self, _env: JniEnv<'env>) -> Self::JavaType {
                 let val = *self;
                 assert!(
@@ -75,8 +81,8 @@ macro_rules! numeric_conversion {
                 0
             }
         }
-        impl<'env> JavaConversionOwned<'env> for $rust_ty {
-            fn from_java(java: Self::JavaType, _env: JniEnv<'env>) -> Self {
+        unsafe impl<'env> JavaConversionOwned<'env> for $rust_ty {
+            unsafe fn from_java(java: Self::JavaType, _env: JniEnv<'env>) -> Self {
                 assert!(
                     <$rust_ty>::MAX != 0 || java < 0,
                     concat!(stringify!($rust_ty), " cannot be negative")
@@ -84,7 +90,7 @@ macro_rules! numeric_conversion {
                 java as $rust_ty
             }
             fn from_java_value(java: JValue<'env>, env: JniEnv<'env>) -> Result<Self> {
-                Ok(Self::from_java(java.$conv()?, env))
+                Ok(unsafe { Self::from_java(java.$conv()?, env) })
             }
         }
     )*}

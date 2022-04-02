@@ -1,5 +1,5 @@
-use darling::FromAttributes;
 use crate::{errors::*, java_class::JavaClassCtx, utils::*, MacroCtx};
+use darling::FromAttributes;
 use proc_macro2::TokenStream as SynTokenStream;
 use quote::{quote, quote_spanned};
 use syn::{parse2, spanned::Spanned, FnArg, ImplItemMethod, Pat, ReturnType, Signature, Type};
@@ -190,20 +190,20 @@ fn method_wrapper_java(
 
     // Setup important spans
     let item_span = item.span();
-    let params_span = item.sig.span();
+    let sig_span = item.sig.span();
     let output_span = item.sig.output.span();
 
     // Setup the parameter types.
     let (self_param, env, lt) = match self_mode {
         FuncSelfMode::EnvRef => (
-            quote_spanned!(params_span => self: &#nekojni::JniRef<Self>),
-            quote_spanned!(params_span => #nekojni::JniRef::env(self)),
-            quote_spanned!(params_span => /* nothing */),
+            quote_spanned!(sig_span => self: &#nekojni::JniRef<Self>),
+            quote_spanned!(sig_span => #nekojni::JniRef::env(self)),
+            quote_spanned!(sig_span => /* nothing */),
         ),
         FuncSelfMode::Static => (
-            quote_spanned!(params_span => env: impl #std::convert::AsRef<#nekojni::JniEnv<'env>>),
-            quote_spanned!(params_span => env),
-            quote_spanned!(params_span => <'env>),
+            quote_spanned!(sig_span => env: impl #std::convert::AsRef<#nekojni::JniEnv<'env>>),
+            quote_spanned!(sig_span => env),
+            quote_spanned!(sig_span => <'env>),
         ),
 
         FuncSelfMode::SelfRef => error(
@@ -276,7 +276,7 @@ fn method_wrapper_java(
                     #class_name, #java_name, signature_name, &[#(#param_names_java,)*],
                 );
             }
-        },
+        }
         _ => unreachable!(),
     };
     let mut body = quote_spanned! { item_span =>
@@ -307,7 +307,7 @@ fn method_wrapper_java(
     if self_mode == FuncSelfMode::Static {
         let wrapper_fn = components.gensym("wrapper_fn");
         body = quote_spanned! { item_span =>
-            fn #wrapper_fn(env: #nekojni::JniEnv, #(#param_names: #param_types,)*) {
+            fn #wrapper_fn(env: #nekojni::JniEnv, #(#param_names: #param_types,)*) -> #ret_ty {
                 #body
             }
             let env = *env.as_ref();
@@ -317,7 +317,7 @@ fn method_wrapper_java(
 
     // Generate the function in the additional impl block
     let new_method = parse2::<ImplItemMethod>(quote_spanned! { item_span =>
-        fn func #lt(#self_param, #(#param_names: #param_types,)*) {
+        fn func #lt(#self_param, #(#param_names: #param_types,)*) -> #ret_ty {
             #body
         }
     })?;
@@ -338,7 +338,48 @@ fn method_wrapper_exported(
 ) -> Result<bool> {
     item.sig.abi = None;
 
-    let args = process_method_args(ctx, components, &mut item.sig)?;
+    let (self_mode, args) = process_method_args(ctx, components, &mut item.sig)?;
+
+    let nekojni = &ctx.nekojni;
+    let nekojni_internal = &ctx.internal;
+    let std = &ctx.std;
+    let jni = &ctx.jni;
+
+    // Java method name
+    let java_name = match &attrs.rename {
+        None => heck::AsLowerCamelCase(item.sig.ident.to_string()).to_string(),
+        Some(name) => name.clone(),
+    };
+
+    // Setup important spans
+    let item_span = item.span();
+    let sig_span = item.sig.span();
+    let output_span = item.sig.output.span();
+
+    // Parse the type signature of the function.
+    let mut param_types: Vec<_> = args.iter().map(FuncArgMode::ty).collect();
+
+    let mut param_names_java = Vec::new();
+    let mut param_names_param = Vec::new();
+    for arg in &args {
+        param_names_java.push(components.gensym("java"));
+        param_names_param.push(components.gensym("param"));
+    }
+
+    let ret_ty = match &item.sig.output {
+        ReturnType::Default => quote_spanned! { output_span => () },
+        ReturnType::Type(_, ty) => quote_spanned! { output_span => #ty },
+    };
+
+    // Generate the JNI function
+    let name = components.gensym(&format!("wrapper_{}", java_name));
+    components
+        .generated_private_impls
+        .extend(quote_spanned! { sig_span =>
+            extern "system" fn #name(env: &#jni::JNIEnv, ) -> #ret_ty {
+
+            }
+        });
 
     Ok(false)
 }
