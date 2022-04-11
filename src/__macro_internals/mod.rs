@@ -1,11 +1,16 @@
+mod extract_self_param;
 mod once;
 mod registration;
 mod return_ty;
 
 pub use crate::{
-    internal::{globals::set_default_exception_class, panicking::catch_panic_jni},
+    internal::{
+        globals::set_default_exception_class,
+        panicking::{catch_panic_jni, MethodReturn},
+    },
     java_class::{exports, JavaClassImpl, RustContents},
 };
+pub use extract_self_param::*;
 pub use nekojni_classfile::{CFlags, FFlags, MFlags};
 pub use once::OnceCache;
 pub use registration::*;

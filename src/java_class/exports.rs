@@ -45,7 +45,7 @@ pub struct RustNativeMethod {
 
 /// A trait representing a Java class that may be exported via codegen.
 #[derive(Debug)]
-pub struct CodegenClass {
+pub struct ExportedClass {
     pub access: EnumSet<CFlags>,
     pub name: ClassName<'static>,
     pub super_class: Option<ClassName<'static>>,
@@ -57,7 +57,7 @@ pub struct CodegenClass {
     pub get_exports: fn() -> Vec<ExportedItem>,
     pub get_native_methods: fn() -> Vec<RustNativeMethod>,
 }
-impl CodegenClass {
+impl ExportedClass {
     pub fn register_natives(&self, env: &JniEnv) -> Result<()> {
         let mut methods = Vec::new();
         for method in (self.get_native_methods)() {

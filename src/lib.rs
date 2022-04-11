@@ -15,14 +15,16 @@ mod java_class;
 mod jni_env;
 
 pub use errors::{Error, Result};
-pub use java_class::{
-    jni_ref::{JniRef, JniRefMut},
-    JavaClass,
-};
+pub use java_class::jni_ref::{JniRef, JniRefMut};
 pub use jni_env::JniEnv;
 
 /// The module containing the types used for conversions between Java and Rust types.
 pub mod conversions;
+
+/// The module containing types used to represent Java objects.
+pub mod objects {
+    pub use crate::java_class::JavaClass;
+}
 
 #[doc(inline)]
 /// The module containing types that represent Java type signatures.
@@ -51,14 +53,15 @@ macro_rules! jni_module {
     (
         $module_vis:vis $module_name:ident, $init_class_name:expr $(,)?
     ) => {
-        $module_vis enum $module_name {}
+        /// The JNI module exported by this crate.
+        $module_vis struct $module_name;
 
-        /// The module used by nekojni for this crate.
+        /// The module used by nekojni's codegen for this crate.
         #[deprecated = "This module is for internal use by nekojni! It is not public API for \
                         either the crate it is defined in or its users."]
         #[doc(hidden)]
         #[allow(deprecated)]
-        pub mod nekojni__jni_module {
+        mod nekojni__jni_module {
             use $crate::{jni_export, jni};
             use $crate::__macro_internals::*;
 

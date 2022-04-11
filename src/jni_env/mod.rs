@@ -1,4 +1,4 @@
-use crate::{errors::*, java_class::object_id::IdManager, JavaClass};
+use crate::{errors::*, java_class::object_id::IdManager};
 use chashmap::CHashMap;
 use jni::{strings::JNIString, sys::jclass, JNIEnv, NativeMethod};
 use lazy_static::lazy_static;
@@ -137,7 +137,20 @@ impl<'env> JniEnv<'env> {
     pub(crate) fn get_id_manager<T: Any + Send + Sync>(&self) -> Arc<IdManager<RwLock<T>>> {
         self.get_jvm_instance(IdManager::new)
     }
+
+    /// Returns the inner [`JNIEnv`].
+    ///
+    /// # Safety
+    ///
+    /// This is unsafe because the interface for `JNIEnv` is fundamentally unsound in several ways,
+    /// and therefore, any usage of it directly (despite it not being innately unsafe) should be
+    /// presumed to be unsafe.
+    pub unsafe fn as_inner(&self) -> JNIEnv<'env> {
+        self.env
+    }
 }
+
+// TODO: Temporary
 impl<'env> Deref for JniEnv<'env> {
     type Target = JNIEnv<'env>;
 

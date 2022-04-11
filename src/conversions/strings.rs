@@ -65,7 +65,7 @@ impl JavaConversionType for [u8] {
 unsafe impl<'env> JavaConversion<'env> for [u8] {
     const JAVA_TYPE: Type<'static> = Type::Boolean.array();
     fn to_java(&self, env: JniEnv<'env>) -> Self::JavaType {
-        env.byte_array_from_slice(&self).unwrap().into_inner()
+        env.byte_array_from_slice(&self).unwrap()
     }
     fn to_java_value(&self, env: JniEnv<'env>) -> JValue<'env> {
         JValue::Object(JObject::from(self.to_java(env)))
@@ -109,7 +109,7 @@ unsafe impl<'env> JavaConversion<'env> for Vec<u8> {
 }
 unsafe impl<'env> JavaConversionOwned<'env> for Vec<u8> {
     unsafe fn from_java(java: Self::JavaType, env: JniEnv<'env>) -> Self {
-        env.convert_byte_array(java.into_inner()).unwrap()
+        env.convert_byte_array(java).unwrap()
     }
     fn from_java_value(java: JValue<'env>, env: JniEnv<'env>) -> Result<Self> {
         Ok(unsafe { Self::from_java(java.l()?.into_inner(), env) })

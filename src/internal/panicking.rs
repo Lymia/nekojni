@@ -6,13 +6,17 @@ use crate::{
 use jni::JNIEnv;
 use std::{any::Any, panic::AssertUnwindSafe};
 
-pub trait MethodReturn<T> {
-    fn into_inner(self) -> T;
+pub trait MethodReturn {
+    type Intermediate;
+    type ReturnTy: JniAbiType;
+    fn into_inner(self) -> Self::Intermediate;
     fn is_error(&self) -> bool;
     fn emit_error(self, env: JniEnv, exception_class: &str) -> Result<()>;
 }
 
-impl<T> MethodReturn<T> for T {
+impl<T: JavaConversionType> MethodReturn for T {
+    type Intermediate = T;
+    type ReturnTy = T::JavaType;
     fn into_inner(self) -> T {
         self
     }
@@ -23,7 +27,9 @@ impl<T> MethodReturn<T> for T {
         Err(Error::message("attempted to emit error from method that cannot fail"))
     }
 }
-impl<T, E: ErrorTrait + 'static> MethodReturn<T> for StdResult<T, E> {
+impl<T: JavaConversionType, E: ErrorTrait + 'static> MethodReturn for StdResult<T, E> {
+    type Intermediate = T;
+    type ReturnTy = T::JavaType;
     fn into_inner(self) -> T {
         self.expect("internal error: into_inner called on Err")
     }
@@ -37,7 +43,9 @@ impl<T, E: ErrorTrait + 'static> MethodReturn<T> for StdResult<T, E> {
         Error::wrap(err).emit_error(env, exception_class)
     }
 }
-impl<T> MethodReturn<T> for Result<T> {
+impl<T: JavaConversionType> MethodReturn for Result<T> {
+    type Intermediate = T;
+    type ReturnTy = T::JavaType;
     fn into_inner(self) -> T {
         self.expect("internal error: into_inner called on Err")
     }
@@ -84,12 +92,12 @@ pub fn catch_panic<R>(func: impl FnOnce() -> R) -> Result<R> {
 /// The function that handles the return value of object methods, and prevents panics from crossing
 /// the FFI barrier.
 #[allow(deprecated)]
-pub fn catch_panic_jni<'env, T, R: MethodReturn<T>>(
-    env: JNIEnv<'env>,
-    func: impl FnOnce(JniEnv) -> R,
-) -> <T as JavaConversionType>::JavaType
+pub fn catch_panic_jni<R: MethodReturn, F: FnOnce(JniEnv) -> R>(
+    env: JNIEnv,
+    func: F,
+) -> <R::Intermediate as JavaConversionType>::JavaType
 where
-    for<'a> T: JavaReturnConversion<'a>,
+    for<'a> R::Intermediate: JavaReturnConversion<'a>,
 {
     // for safety, just in case there's a bug that might cause panics in e.g. backtrace, since
     // we invoke a lot of weird stuff trying to get the panic string.
@@ -99,8 +107,8 @@ where
             match catch_panic(|| {
                 let result = func(env);
                 if result.is_error() {
-                    check_fail(env.emit_error(env, exception_class));
-                    T::null_ret()
+                    check_fail(result.emit_error(env, exception_class));
+                    R::Intermediate::null_ret()
                 } else {
                     result.into_inner().to_java_ret(env)
                 }
@@ -108,7 +116,7 @@ where
                 Ok(v) => Ok(v),
                 Err(e) => {
                     check_fail(e.emit_error(env, exception_class));
-                    Ok(T::null_ret())
+                    Ok(R::Intermediate::null_ret())
                 }
             }
         })
