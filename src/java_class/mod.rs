@@ -2,10 +2,9 @@ pub mod exports;
 pub mod jni_ref;
 pub mod object_id;
 
-use crate::{errors::*, JniEnv};
+use crate::{errors::*, java_class::exports::ExportedClass, JniEnv};
 use jni::objects::JObject;
-use nekojni_signatures::Type;
-use parking_lot::RwLock;
+use nekojni_signatures::{ClassName, Type};
 
 // TODO: Generate native-image configurations.
 
@@ -13,8 +12,8 @@ use parking_lot::RwLock;
 pub trait JavaClass<'env>: JavaClassImpl<'env> {}
 
 pub trait JavaClassImpl<'env>: Sized + Send + Sync + 'static {
+    const INIT_ID: usize;
     const JAVA_TYPE: Type<'static>;
-    const CLASS_INFO: Option<exports::ExportedClass> = None;
 
     fn default_ptr() -> &'static Self;
 
@@ -31,4 +30,15 @@ pub trait JavaClassImpl<'env>: Sized + Send + Sync + 'static {
 
 pub trait RustContents<'env>: JavaClass<'env> {
     const ID_FIELD: &'static str;
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct JavaClassInfo {
+    pub name: &'static ClassName<'static>,
+    pub exported: &'static Option<ExportedClass>,
+}
+
+pub trait JavaModule: JavaModuleImpl {}
+pub trait JavaModuleImpl {
+    fn get_info(&self) -> &'static [&'static JavaClassInfo];
 }

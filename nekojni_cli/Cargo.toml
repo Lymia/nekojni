@@ -1,0 +1,10 @@
+[package]
+name = "nekojni_cli"
+version = "0.1.0"
+authors = ["Lymia Aluysia <lymia@lymia.moe>"]
+edition = "2021"
+
+[dependencies]
+clap = { version = "3.1.9", features = ["derive"] }
+
+nekojni = { version = "0.1.0", path = ".." }

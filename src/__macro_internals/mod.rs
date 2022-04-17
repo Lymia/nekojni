@@ -8,10 +8,11 @@ pub use crate::{
         globals::set_default_exception_class,
         panicking::{catch_panic_jni, MethodReturn},
     },
-    java_class::{exports, JavaClassImpl, RustContents},
+    java_class::{exports, JavaClassImpl, JavaClassInfo, JavaModuleImpl, RustContents},
 };
 pub use extract_self_param::*;
 pub use nekojni_classfile::{CFlags, FFlags, MFlags};
+pub use nekojni_macros::jni_export_internal;
 pub use once::OnceCache;
 pub use registration::*;
 pub use return_ty::ImportReturnTy;
@@ -63,3 +64,7 @@ pub fn check_jnienv(_: JniEnv) {
 pub fn promise<T>() -> T {
     unreachable!()
 }
+
+/// A version string to allow for detecting binaries compiled with an incompatible version of
+/// nekojni. Not 100% reliable, but good enough.
+pub static MARKER_STR: &str = concat!(env!("CARGO_PKG_NAME"), " ", env!("CARGO_PKG_VERSION"),);

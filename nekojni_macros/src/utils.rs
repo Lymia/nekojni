@@ -1,13 +1,15 @@
 //! A module containing helper functions used throughout the macros implementation.
 
-use crate::errors::{Error, Result};
+use crate::{
+    errors::{Error, Result},
+    MacroCtx,
+};
 use enumset::{EnumSet, EnumSetType};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as SynTokenStream};
 use quote::*;
 use std::fmt::{Debug, Display};
 use syn::{spanned::Spanned, *};
-use crate::MacroCtx;
 
 /// Creates an identifier with a format-like syntax.
 macro_rules! ident {

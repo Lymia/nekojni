@@ -19,13 +19,14 @@ pub(crate) struct JavaClassCtx {
 
     generated_impls: TokenStream,
     generated_private_impls: TokenStream,
-    generated_copied_impls: TokenStream,
     generated_private_items: TokenStream,
     generated_type_checks: TokenStream,
     generated_cache: TokenStream,
 
     exports: Vec<TokenStream>,
     native_methods: Vec<TokenStream>,
+
+    is_internal: bool,
 }
 impl JavaClassCtx {
     fn gensym(&mut self, prefix: &str) -> Ident {
@@ -76,7 +77,12 @@ impl MacroArgs {
     }
 }
 
-fn jni_process_impl(attr: TokenStream, item: TokenStream, is_import: bool) -> Result<TokenStream> {
+fn jni_process_impl(
+    attr: TokenStream,
+    item: TokenStream,
+    is_import: bool,
+    is_internal: bool,
+) -> Result<TokenStream> {
     let ctx = MacroCtx::new()?;
     let mut impl_block = parse2::<ItemImpl>(item)?;
 
@@ -130,6 +136,7 @@ fn jni_process_impl(attr: TokenStream, item: TokenStream, is_import: bool) -> Re
 
     let cl_flags = args.parse_flags(&attr)?;
     let this_class = class_name.display_jni().to_string();
+    let cl_id = super::chain_next();
 
     // Parse the supertypes.
     let extends_class = match &args.extends {
@@ -165,12 +172,12 @@ fn jni_process_impl(attr: TokenStream, item: TokenStream, is_import: bool) -> Re
         sym_uid: 0,
         generated_impls: Default::default(),
         generated_private_impls: Default::default(),
-        generated_copied_impls: Default::default(),
         generated_private_items: Default::default(),
         generated_type_checks: Default::default(),
         generated_cache: Default::default(),
         exports: Default::default(),
         native_methods: Default::default(),
+        is_internal,
     };
 
     // Process methods in the impl block
@@ -199,7 +206,6 @@ fn jni_process_impl(attr: TokenStream, item: TokenStream, is_import: bool) -> Re
 
     let generated_impls = &components.generated_impls;
     let generated_private_impls = &components.generated_private_impls;
-    let generated_copied_impls = &components.generated_copied_impls;
     let generated_private_items = &components.generated_private_items;
     let generated_type_checks = &components.generated_type_checks;
     let generated_cache = &components.generated_cache;
@@ -271,11 +277,11 @@ fn jni_process_impl(attr: TokenStream, item: TokenStream, is_import: bool) -> Re
                 #generated_impls
             }
             impl<'env> #nekojni_internal::JavaClassImpl<'env> for #impl_ty {
+                const INIT_ID: usize = #cl_id;
                 const JAVA_TYPE: #nekojni::signatures::Type<'static> =
                     #nekojni::signatures::Type::new(
                         #nekojni::signatures::BasicType::Class(#class_name_toks)
                     );
-                const CLASS_INFO: Option<#nekojni_internal::exports::ExportedClass> = #class_info;
                 #create_ref
                 type Cache = ExportedClassCache<'env>;
             }
@@ -288,21 +294,10 @@ fn jni_process_impl(attr: TokenStream, item: TokenStream, is_import: bool) -> Re
             #[allow(unused)]
             mod __njni_priv {
                 use super::*;
-                // Impl that contains method copied from the actual explicit code the private
-                // module (mostly due to `open` accessibility).
                 impl #impl_ty {
-                    #generated_copied_impls
+                    #generated_private_impls
                 }
-                // Module used to separate out generated methods from copied methods (so they
-                // can't be called easily from the former).
-                mod __njni_generated {
-                    use super::*;
-                    impl #impl_ty {
-                        #generated_private_impls
-                    }
-                    #generated_private_items
-                }
-                pub use __njni_generated::*;
+                #generated_private_items
             }
 
             #[allow(unused)]
@@ -315,14 +310,44 @@ fn jni_process_impl(attr: TokenStream, item: TokenStream, is_import: bool) -> Re
                 }
             }
 
+            static CLASS_INFO: #nekojni_internal::JavaClassInfo =
+                #nekojni_internal::JavaClassInfo {
+                    name: &#class_name_toks,
+                    exported: &#class_info,
+                };
+            fn append_to_list(classes: &crate::__njni_module_info::GatherClasses) {
+                classes.0.borrow_mut().push(&CLASS_INFO)
+            }
+            impl<'a> #nekojni_internal::Registration<#cl_id>
+                for crate::__njni_module_info::GatherClasses<'a>
+            {
+                #[inline(always)]
+                fn run_chain_fwd(&self) {
+                    use #nekojni_internal::{DerefRampChainA, DerefRampChainB};
+                    append_to_list(self);
+                    let helper = #nekojni_internal::DerefRamp::<{ #cl_id + 1 }, _>(self);
+                    (&helper).run_chain_fwd();
+                }
+                #[inline(always)]
+                fn run_chain_rev(&self) {
+                    use #nekojni_internal::{DerefRampChainA, DerefRampChainB};
+                    append_to_list(self);
+                    let helper = #nekojni_internal::DerefRamp::<{ #cl_id - 1 }, _>(self);
+                    (&helper).run_chain_rev();
+                }
+            }
+
             ()
         };
     })
 }
 
 pub fn jni_export(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
-    jni_process_impl(attr, item, false)
+    jni_process_impl(attr, item, false, false)
+}
+pub fn jni_export_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
+    jni_process_impl(attr, item, false, true)
 }
 pub fn jni_import(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
-    jni_process_impl(attr, item, true)
+    jni_process_impl(attr, item, true, false)
 }

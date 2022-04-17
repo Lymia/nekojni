@@ -23,7 +23,7 @@ pub mod conversions;
 
 /// The module containing types used to represent Java objects.
 pub mod objects {
-    pub use crate::java_class::JavaClass;
+    pub use crate::java_class::{JavaClass, JavaModule};
 }
 
 #[doc(inline)]
@@ -61,22 +61,22 @@ macro_rules! jni_module {
                         either the crate it is defined in or its users."]
         #[doc(hidden)]
         #[allow(deprecated)]
-        mod nekojni__jni_module {
-            use $crate::{jni_export, jni};
+        mod __njni_module_info {
+            use $crate::{jni_export, jni, Result};
             use $crate::__macro_internals::*;
 
             #[allow(unused)]
             mod check_path {
                 struct CheckPathStruct;
                 fn check_is_macro_called_in_crate_root() {
-                    let val = crate::nekojni__jni_module::check_path::CheckPathStruct;
+                    let val = crate::__njni_module_info::check_path::CheckPathStruct;
                     ::std::mem::drop(val);
                 }
             }
 
             pub enum InitHelper { }
 
-            #[jni_export]
+            #[jni_export_internal]
             #[jni(java_path = $init_class_name)]
             /// A class used to help initialize this library.
             impl InitHelper {
@@ -86,9 +86,53 @@ macro_rules! jni_module {
                 /// This is automatically called from the static initializer of all functions in
                 /// the library with native functions, and hence should never need to be directly
                 /// called.
-                pub fn initialize(ctx: $crate::JniEnv) {
+                #[jni(__njni_direct_export = $init_class_name)]
+                pub fn initialize(env: $crate::JniEnv) -> Result<()> {
+                    let info = crate::$module_name.get_info();
 
+                    for class in info {
+                        if let Some(exported) = &class.exported {
+                            exported.register_natives(env)?;
+                        }
+                    }
+
+                    Ok(())
                 }
+
+                /// A method exported from the .so/.dylib/.dll to allow the cli tool to pull
+                /// information from the binary.
+                #[jni(__njni_export_module_info = $init_class_name)]
+                pub extern "C" fn __njni_module_info()
+                    -> (&'static str, &'static [&'static JavaClassInfo])
+                {
+                    (MARKER_STR, crate::$module_name.get_info())
+                }
+            }
+
+            pub struct GatherClasses<'a>(
+                pub std::cell::RefCell<&'a mut Vec<&'static JavaClassInfo>>,
+            );
+
+            const CL_ID: usize = <InitHelper as JavaClassImpl>::INIT_ID;
+            impl $crate::objects::JavaModule for crate::$module_name { }
+            impl JavaModuleImpl for crate::$module_name {
+                #[inline(never)]
+                fn get_info(&self) -> &'static [&'static JavaClassInfo] {
+                    static CACHE: OnceCache<Vec<&'static JavaClassInfo>> = OnceCache::new();
+                    &CACHE.init(get_info_raw)
+                }
+            }
+
+            fn get_info_raw() -> Vec<&'static JavaClassInfo> {
+                let mut classes = Vec::new();
+                let classes_obj = GatherClasses(std::cell::RefCell::new(&mut classes));
+
+                let helper = DerefRamp::<CL_ID, _>(&classes_obj);
+                (&helper).run_chain_fwd();
+                let helper = DerefRamp::<{CL_ID - 1}, _>(&classes_obj);
+                (&helper).run_chain_rev();
+
+                classes
             }
         }
     };

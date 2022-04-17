@@ -2,6 +2,7 @@
 mod utils;
 #[macro_use]
 mod errors;
+
 mod java_class;
 mod signatures;
 
@@ -12,7 +13,7 @@ use quote::quote;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn chain_next() -> usize {
-    static CHAIN_COUNT: AtomicUsize = AtomicUsize::new(0);
+    static CHAIN_COUNT: AtomicUsize = AtomicUsize::new(1);
     CHAIN_COUNT.fetch_add(1, Ordering::SeqCst)
 }
 
@@ -40,6 +41,11 @@ impl MacroCtx {
 #[proc_macro_attribute]
 pub fn jni_export(attr: TokenStream, item: TokenStream) -> TokenStream {
     try_syn!(java_class::jni_export(attr.into(), item.into())).into()
+}
+
+#[proc_macro_attribute]
+pub fn jni_export_internal(attr: TokenStream, item: TokenStream) -> TokenStream {
+    try_syn!(java_class::jni_export_internal(attr.into(), item.into())).into()
 }
 
 #[proc_macro_attribute]

@@ -43,6 +43,8 @@ pub struct RustNativeMethod {
     pub fn_ptr: *mut c_void,
     pub is_static: bool,
 }
+unsafe impl Send for RustNativeMethod {}
+unsafe impl Sync for RustNativeMethod {}
 
 fn jni_native_name(name: &str, is_static: bool) -> String {
     format!("njni$${}${}", name, if is_static { "s" } else { "m" })
@@ -63,7 +65,7 @@ pub struct ExportedClass {
     pub native_methods: &'static [RustNativeMethod],
 }
 impl ExportedClass {
-    pub fn register_natives(&self, env: &JniEnv) -> Result<()> {
+    pub fn register_natives(&self, env: JniEnv) -> Result<()> {
         let mut methods = Vec::new();
         for method in self.native_methods {
             methods.push(NativeMethod {

@@ -2,15 +2,25 @@ use crate::{errors::*, java_class::JavaClassCtx, utils::*, MacroCtx};
 use darling::FromAttributes;
 use enumset::EnumSet;
 use nekojni_classfile::MFlags;
+use nekojni_signatures::{ClassName, MethodName};
 use proc_macro2::{Span, TokenStream as SynTokenStream, TokenStream};
 use quote::{quote, quote_spanned};
-use syn::{parse2, spanned::Spanned, FnArg, ImplItemMethod, Pat, ReturnType, Signature, Type};
+use syn::{
+    parse2, spanned::Spanned, Attribute, FnArg, ImplItemMethod, Pat, ReturnType, Signature, Type,
+};
+
+// TODO: Rewrite methods to allow better interop between `JniRef` and `JniRefMut`.
 
 #[derive(Debug, FromAttributes)]
 #[darling(attributes(jni))]
 pub(crate) struct FunctionAttrs {
     #[darling(default)]
     rename: Option<String>,
+
+    #[darling(default, rename = "__njni_direct_export")]
+    direct_export: Option<String>,
+    #[darling(default, rename = "__njni_export_module_info")]
+    export_module_info: Option<String>,
 
     #[darling(default, rename = "internal")]
     acc_internal: bool,
@@ -26,6 +36,13 @@ pub(crate) struct FunctionAttrs {
     acc_synchronized: bool,
 }
 impl FunctionAttrs {
+    pub(crate) fn check_internal_used(&self) -> Result<()> {
+        if self.direct_export.is_some() || self.export_module_info.is_some() {
+            error(Span::call_site(), "Attrs starting with `__njni_` are internal.")?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn parse_flags(&self, span: &impl Spanned) -> Result<EnumSet<MFlags>> {
         if !self.acc_open && self.acc_abstract {
             error(span.span(), "`abstract` methods must also be `open`.")?;
@@ -324,12 +341,12 @@ fn method_wrapper_java(
         _ => unreachable!(),
     };
     let mut body = quote_spanned! { item_span =>
-        const PARAMS: &'static [#nekojni::signatures::Type<'static>] = &[
+        const PARAMS: &[#nekojni::signatures::Type] = &[
             #(<#param_types as #nekojni::conversions::JavaConversionJavaType>::JAVA_TYPE,)*
         ];
-        const RETURN_TY: #nekojni::signatures::ReturnType<'static> =
+        const RETURN_TY: #nekojni::signatures::ReturnType =
             <#ret_ty as #nekojni_internal::ImportReturnTy>::JAVA_TYPE;
-        const SIGNATURE: #nekojni::signatures::MethodSig<'static> =
+        const SIGNATURE: #nekojni::signatures::MethodSig =
             #nekojni::signatures::MethodSig {
                 ret_ty: RETURN_TY,
                 params: #nekojni::signatures::StaticList::Borrowed(PARAMS),
@@ -429,7 +446,7 @@ fn method_wrapper_exported(
         let mut item_copy = item.clone();
         item_copy.sig.ident = exported_method.clone();
         components
-            .generated_copied_impls
+            .generated_private_impls
             .extend(quote! { #item_copy });
         quote! { #exported_method }
     } else {
@@ -522,7 +539,7 @@ fn method_wrapper_exported(
         }
     }
 
-    // Generate the JNI function
+    // Prepare code fragments for generating the wrapper function
     let native_export = components.gensym("NATIVE_EXPORT");
     let wrapper_name = components.gensym(&format!("wrapper_{rust_name_str}"));
     let exported_method = components.gensym("EXPORTED_METHOD");
@@ -538,9 +555,29 @@ fn method_wrapper_exported(
     let self_ty = &components.self_ty;
     let access = enumset_to_toks(&ctx, quote!(#nekojni_internal::MFlags), m_flags);
 
+    // Handle internal feature to directly export the Java_*_initialize function.
+    let direct_export_attrs = if let Some(class_name) = &attrs.direct_export {
+        let class_name = match ClassName::parse_java(class_name) {
+            Ok(v) => v,
+            Err(e) => error(Span::call_site(), format!("Could not parse class name: {e:?}"))?,
+        };
+        let method_name = MethodName::new(class_name, &rust_name_str);
+        let method_name = method_name.display_jni_export().to_string();
+
+        quote_spanned! { sig_span =>
+            #[no_mangle]
+            #[export_name = #method_name]
+            pub // not technically an attr, but, this works anyway.
+        }
+    } else {
+        quote!()
+    };
+
+    // Generate the actual code.
     components
         .generated_private_impls
         .extend(quote_spanned! { sig_span =>
+            #direct_export_attrs
             extern "system" fn #wrapper_name<'env>(
                 env: #jni::JNIEnv<'env>,
                 #self_param,
@@ -642,8 +679,35 @@ pub(crate) fn method_wrapper(
             mark_attribute_processed(attr);
         }
     }
+    if !components.is_internal {
+        attrs.check_internal_used()?;
+    }
 
     // process the method itself
+    if let Some(class_name) = &attrs.export_module_info {
+        let class_name = match ClassName::parse_java(class_name) {
+            Ok(v) => v,
+            Err(e) => error(Span::call_site(), format!("Could not parse class name: {e:?}"))?,
+        };
+        let pkg_name = std::env::var("CARGO_PKG_NAME").unwrap_or(format!("unknown"));
+        let version = std::env::var("CARGO_PKG_VERSION")
+            .unwrap_or(format!("0"))
+            .replace(".", ";");
+        let export_name = format!(
+            "__njni_modinfo_v1__{}_{}",
+            ClassName::new(&[&pkg_name], &version).display_jni_export(),
+            class_name.display_jni_export(),
+        );
+
+        let temp_item = parse2::<ImplItemMethod>(quote! {
+            #[no_mangle]
+            #[export_name = #export_name]
+            fn func() { }
+        })?;
+        item.attrs.extend(temp_item.attrs);
+
+        return Ok(false);
+    }
     if let Some(abi) = &item.sig.abi {
         if let Some(abi) = &abi.name {
             let abi = abi.value();

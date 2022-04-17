@@ -8,6 +8,10 @@ edition = "2021"
 default = ["codegen"]
 codegen = []
 
+[[example]]
+name = "test_classes_2"
+crate-type = ["cdylib"]
+
 [dependencies]
 bytemuck = "1.8.0"
 chashmap = "2.2.2"
@@ -23,4 +27,4 @@ nekojni_macros = { version = "0.1.0", path = "nekojni_macros" }
 nekojni_signatures = { version = "0.1.0", path = "nekojni_signatures", features = ["jni"] }
 
 [workspace]
-members = ["nekojni_classfile", "nekojni_codegen", "nekojni_macros", "nekojni_signatures"]
+members = ["nekojni_classfile", "nekojni_cli", "nekojni_codegen", "nekojni_macros", "nekojni_signatures"]
