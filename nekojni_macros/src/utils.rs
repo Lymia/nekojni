@@ -5,6 +5,7 @@ use crate::{
     MacroCtx,
 };
 use enumset::{EnumSet, EnumSetType};
+use nekojni_signatures::ClassName;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as SynTokenStream};
 use quote::*;
@@ -127,6 +128,7 @@ pub fn stream_span(attr: SynTokenStream) -> Span {
     head_span.join(tail_span).unwrap()
 }
 
+/// Dumps an [`EnumSet`] to a token stream.
 pub(crate) fn enumset_to_toks<T: EnumSetType + Debug>(
     ctx: &MacroCtx,
     ty: SynTokenStream,
@@ -140,4 +142,12 @@ pub(crate) fn enumset_to_toks<T: EnumSetType + Debug>(
         accum = quote!(#accum #ty::#ident |);
     }
     quote!(#nekojni_internal::enumset::enum_set!(#accum))
+}
+
+/// Parses a Java formatted class name.
+pub fn parse_class_name<'a>(name: &str) -> Result<ClassName> {
+    match ClassName::parse_java(name) {
+        Ok(v) => Ok(v),
+        Err(e) => error(Span::call_site(), format!("Could not parse class name: {e:?}")),
+    }
 }

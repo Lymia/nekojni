@@ -4,7 +4,7 @@ use nekojni_signatures::ReturnType;
 
 pub trait ImportReturnTy<'env> {
     fn from_return_ty(from: &str, env: JniEnv<'env>, value: Result<JValue<'env>>) -> Self;
-    const JAVA_TYPE: ReturnType<'static>;
+    const JNI_TYPE: &'static str;
 }
 
 impl<'env> ImportReturnTy<'env> for () {
@@ -15,7 +15,7 @@ impl<'env> ImportReturnTy<'env> for () {
             Err(e) => panic!("method {from} returned error: {e}"),
         }
     }
-    const JAVA_TYPE: ReturnType<'static> = ReturnType::Void;
+    const JNI_TYPE: &'static str = "V";
 }
 impl<'env, T: JavaConversionOwned<'env>> ImportReturnTy<'env> for T {
     fn from_return_ty(from: &str, env: JniEnv<'env>, value: Result<JValue<'env>>) -> Self {
@@ -27,11 +27,11 @@ impl<'env, T: JavaConversionOwned<'env>> ImportReturnTy<'env> for T {
             Err(e) => panic!("method {from} returned error: {e}"),
         }
     }
-    const JAVA_TYPE: ReturnType<'static> = ReturnType::Ty(T::JAVA_TYPE);
+    const JNI_TYPE: &'static str = T::JNI_TYPE;
 }
 impl<'env, T: JavaConversionOwned<'env>> ImportReturnTy<'env> for Result<T> {
     fn from_return_ty(_: &str, env: JniEnv<'env>, value: Result<JValue<'env>>) -> Self {
         T::from_java_value(value?, env)
     }
-    const JAVA_TYPE: ReturnType<'static> = ReturnType::Ty(T::JAVA_TYPE);
+    const JNI_TYPE: &'static str = T::JNI_TYPE;
 }

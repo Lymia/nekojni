@@ -10,6 +10,7 @@ pub use crate::{
     },
     java_class::{exports, JavaClassImpl, JavaClassInfo, JavaModuleImpl, RustContents},
 };
+pub use constcat::constcat;
 pub use extract_self_param::*;
 pub use nekojni_classfile::{CFlags, FFlags, MFlags};
 pub use nekojni_macros::jni_export_internal;

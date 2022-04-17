@@ -14,24 +14,27 @@ use std::{collections::HashMap, ffi::c_void};
 pub enum ExportedItem {
     NativeConstructor {
         flags: EnumSet<MFlags>,
-        signature: MethodSig<'static>,
+        signature: &'static str,
 
         native_name: &'static str,
-        native_signature: MethodSig<'static>,
-        super_signature: MethodSig<'static>,
+        native_signature: &'static str,
+
+        super_signature: &'static str,
     },
     NativeMethodWrapper {
         flags: EnumSet<MFlags>,
         name: &'static str,
-        signature: MethodSig<'static>,
+        signature: &'static str,
 
         native_name: &'static str,
+        native_signature: &'static str,
+
         has_id_param: bool,
     },
     JavaField {
         flags: EnumSet<FFlags>,
         name: &'static str,
-        field: Type<'static>,
+        field: &'static str,
     },
 }
 
@@ -39,7 +42,7 @@ pub enum ExportedItem {
 #[derive(Debug)]
 pub struct RustNativeMethod {
     pub name: &'static str,
-    pub sig: MethodSig<'static>,
+    pub sig: &'static str,
     pub fn_ptr: *mut c_void,
     pub is_static: bool,
 }
@@ -54,9 +57,9 @@ fn jni_native_name(name: &str, is_static: bool) -> String {
 #[derive(Debug)]
 pub struct ExportedClass {
     pub access: EnumSet<CFlags>,
-    pub name: ClassName<'static>,
-    pub super_class: Option<ClassName<'static>>,
-    pub implements: &'static [ClassName<'static>],
+    pub name: &'static str,
+    pub super_class: Option<&'static str>,
+    pub implements: &'static [&'static str],
 
     pub id_field_name: &'static str,
     pub late_init: &'static [&'static str],
@@ -70,14 +73,15 @@ impl ExportedClass {
         for method in self.native_methods {
             methods.push(NativeMethod {
                 name: JNIString::from(jni_native_name(&method.name, method.is_static)),
-                sig: JNIString::from(method.sig.display_jni().to_string()),
+                sig: JNIString::from(method.sig),
                 fn_ptr: method.fn_ptr,
             });
         }
-        env.register_native_methods(&self.name.display_jni().to_string(), &methods)?;
+        env.register_native_methods(self.name, &methods)?;
         Ok(())
     }
 
+    /*
     pub fn generate_class(&self) -> Vec<(String, Vec<u8>)> {
         let mut class = ClassExporter::new(
             self.access,
@@ -150,4 +154,5 @@ impl ExportedClass {
 
         class.into_vec()
     }
+    */
 }

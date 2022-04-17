@@ -2,9 +2,7 @@ use super::*;
 
 impl JavaConversionType for bool {
     type JavaType = jboolean;
-}
-impl JavaConversionJavaType for bool {
-    const JAVA_TYPE: Type<'static> = Type::Boolean;
+    const JNI_TYPE: &'static str = "Z";
 }
 unsafe impl<'env> JavaConversion<'env> for bool {
     fn to_java(&self, _env: JniEnv<'env>) -> Self::JavaType {
@@ -28,12 +26,10 @@ unsafe impl<'env> JavaConversionOwned<'env> for bool {
 }
 
 macro_rules! simple_conversion {
-    ($(($rust_ty:ty, $jni_ty:ty, $java_ty:expr, $default:expr, $class:ident, $conv:ident))*) => {$(
+    ($(($rust_ty:ty, $jni_ty:ty, $jni_sig:expr, $default:expr, $class:ident, $conv:ident))*) => {$(
         impl JavaConversionType for $rust_ty {
             type JavaType = $jni_ty;
-        }
-        impl JavaConversionJavaType for $rust_ty {
-            const JAVA_TYPE: Type<'static> = $java_ty;
+            const JNI_TYPE: &'static str = $jni_sig;
         }
         unsafe impl<'env> JavaConversion<'env> for $rust_ty {
             fn to_java(&self, _env: JniEnv<'env>) -> Self::JavaType {
@@ -58,17 +54,15 @@ macro_rules! simple_conversion {
     )*}
 }
 simple_conversion! {
-    (f32, jfloat, Type::Float, 0.0, Float, f)
-    (f64, jdouble, Type::Double, 0.0, Double, d)
+    (f32, jfloat, "F", 0.0, Float, f)
+    (f64, jdouble, "D", 0.0, Double, d)
 }
 
 macro_rules! numeric_conversion {
-    ($(($rust_ty:ty, $jni_ty:ty, $java_ty:expr, $class:ident, $conv:ident))*) => {$(
+    ($(($rust_ty:ty, $jni_ty:ty, $jni_sig:expr, $class:ident, $conv:ident))*) => {$(
         impl JavaConversionType for $rust_ty {
             type JavaType = $jni_ty;
-        }
-        impl JavaConversionJavaType for $rust_ty {
-            const JAVA_TYPE: Type<'static> = $java_ty;
+            const JNI_TYPE: &'static str = $jni_sig;
         }
         unsafe impl<'env> JavaConversion<'env> for $rust_ty {
             fn to_java(&self, _env: JniEnv<'env>) -> Self::JavaType {
@@ -102,12 +96,12 @@ macro_rules! numeric_conversion {
     )*}
 }
 numeric_conversion! {
-    (i8, jbyte, Type::Byte, Byte, b)
-    (u8, jbyte, Type::Byte, Byte, b)
-    (i16, jshort, Type::Short, Short, s)
-    (u16, jshort, Type::Short, Short, s)
-    (i32, jint, Type::Int, Int, i)
-    (u32, jint, Type::Int, Int, i)
-    (i64, jlong, Type::Long, Long, j)
-    (u64, jlong, Type::Long, Long, j)
+    (i8, jbyte, "B", Byte, b)
+    (u8, jbyte, "B", Byte, b)
+    (i16, jshort, "S", Short, s)
+    (u16, jshort, "S", Short, s)
+    (i32, jint, "I", Int, i)
+    (u32, jint, "I", Int, i)
+    (i64, jlong, "L", Long, j)
+    (u64, jlong, "L", Long, j)
 }

@@ -1,28 +1,24 @@
 use crate::{
-    conversions::{
-        JavaConversion, JavaConversionJavaReturnType, JavaConversionType, JavaReturnConversion,
-        JniAbiType,
-    },
+    conversions::{JavaConversionType, JavaReturnConversion, JniAbiType},
     errors::*,
     jni_env::JniEnv,
 };
 use jni::JNIEnv;
-use nekojni_signatures::ReturnType;
 use std::{any::Any, panic::AssertUnwindSafe};
 
 pub trait MethodReturn {
     type Intermediate;
     type ReturnTy: JniAbiType;
-    const JAVA_RETURN_TYPE: ReturnType<'static>;
+    const JNI_RETURN_TYPE: &'static str;
     fn into_inner(self) -> Self::Intermediate;
     fn is_error(&self) -> bool;
     fn emit_error(self, env: JniEnv, exception_class: &str) -> Result<()>;
 }
 
-impl<T: JavaConversionType + JavaConversionJavaReturnType> MethodReturn for T {
+impl<T: JavaConversionType> MethodReturn for T {
     type Intermediate = T;
     type ReturnTy = T::JavaType;
-    const JAVA_RETURN_TYPE: ReturnType<'static> = T::JAVA_RETURN_TYPE;
+    const JNI_RETURN_TYPE: &'static str = T::JNI_TYPE;
     fn into_inner(self) -> T {
         self
     }
@@ -33,12 +29,10 @@ impl<T: JavaConversionType + JavaConversionJavaReturnType> MethodReturn for T {
         Err(Error::message("attempted to emit error from method that cannot fail"))
     }
 }
-impl<T: JavaConversionType + JavaConversionJavaReturnType, E: ErrorTrait + 'static> MethodReturn
-    for StdResult<T, E>
-{
+impl<T: JavaConversionType, E: ErrorTrait + 'static> MethodReturn for StdResult<T, E> {
     type Intermediate = T;
     type ReturnTy = T::JavaType;
-    const JAVA_RETURN_TYPE: ReturnType<'static> = T::JAVA_RETURN_TYPE;
+    const JNI_RETURN_TYPE: &'static str = T::JNI_TYPE;
     fn into_inner(self) -> T {
         self.expect("internal error: into_inner called on Err")
     }
@@ -52,10 +46,10 @@ impl<T: JavaConversionType + JavaConversionJavaReturnType, E: ErrorTrait + 'stat
         Error::wrap(err).emit_error(env, exception_class)
     }
 }
-impl<T: JavaConversionType + JavaConversionJavaReturnType> MethodReturn for Result<T> {
+impl<T: JavaConversionType> MethodReturn for Result<T> {
     type Intermediate = T;
     type ReturnTy = T::JavaType;
-    const JAVA_RETURN_TYPE: ReturnType<'static> = T::JAVA_RETURN_TYPE;
+    const JNI_RETURN_TYPE: &'static str = T::JNI_TYPE;
     fn into_inner(self) -> T {
         self.expect("internal error: into_inner called on Err")
     }

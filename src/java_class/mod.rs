@@ -13,7 +13,9 @@ pub trait JavaClass<'env>: JavaClassImpl<'env> {}
 
 pub trait JavaClassImpl<'env>: Sized + Send + Sync + 'static {
     const INIT_ID: usize;
-    const JAVA_TYPE: Type<'static>;
+
+    const JNI_TYPE: &'static str;
+    const JNI_TYPE_SIG: &'static str;
 
     fn default_ptr() -> &'static Self;
 
@@ -34,7 +36,7 @@ pub trait RustContents<'env>: JavaClass<'env> {
 
 #[derive(Copy, Clone, Debug)]
 pub struct JavaClassInfo {
-    pub name: &'static ClassName<'static>,
+    pub name: &'static str,
     pub exported: &'static Option<ExportedClass>,
 }
 

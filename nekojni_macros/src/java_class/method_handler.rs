@@ -327,37 +327,29 @@ fn method_wrapper_java(
         FuncSelfMode::EnvRef(_) => quote_spanned! { item_span =>
             let this = #nekojni::JniRef::this(self);
             let ret_val = env.call_method(
-                this, #java_name, signature_name, &[#(#param_names_java,)*],
+                this, #java_name, SIGNATURE, &[#(#param_names_java,)*],
             );
         },
         FuncSelfMode::Static => {
             let class_name = &components.class_name;
             quote_spanned! { item_span =>
                 let ret_val = env.call_static_method(
-                    #class_name, #java_name, signature_name, &[#(#param_names_java,)*],
+                    #class_name, #java_name, SIGNATURE, &[#(#param_names_java,)*],
                 );
             }
         }
         _ => unreachable!(),
     };
     let mut body = quote_spanned! { item_span =>
-        const PARAMS: &[#nekojni::signatures::Type] = &[
-            #(<#param_types as #nekojni::conversions::JavaConversionJavaType>::JAVA_TYPE,)*
-        ];
-        const RETURN_TY: #nekojni::signatures::ReturnType =
-            <#ret_ty as #nekojni_internal::ImportReturnTy>::JAVA_TYPE;
-        const SIGNATURE: #nekojni::signatures::MethodSig =
-            #nekojni::signatures::MethodSig {
-                ret_ty: RETURN_TY,
-                params: #nekojni::signatures::StaticList::Borrowed(PARAMS),
-            };
+        const SIGNATURE: &'static str = #nekojni_internal::constcat!(
+            "(",
+            #(<#param_types as #nekojni::conversions::JavaConversionType>::JNI_TYPE,)*
+            ")",
+            <#ret_ty as #nekojni_internal::ImportReturnTy>::JNI_TYPE,
+        );
 
         let env = #env;
         #param_conversion
-
-        static SIGNATURE_CACHE: #nekojni_internal::OnceCache<#std::string::String> =
-            #nekojni_internal::OnceCache::new();
-        let signature_name = SIGNATURE_CACHE.init(|| SIGNATURE.display_jni().to_string());
 
         #call_method
 
@@ -455,30 +447,24 @@ fn method_wrapper_exported(
 
     // Extract various important parameters
     let (extra_param, extra_param_java, extract_ref) = match &self_mode {
-        FuncSelfMode::SelfRef => (
-            quote! { id_param: u32, },
-            quote! { #nekojni::signatures::Type::Int, },
-            quote_spanned! { sig_span =>
+        FuncSelfMode::SelfRef => {
+            (quote! { id_param: u32, }, quote! { "I", }, quote_spanned! { sig_span =>
                 <#nekojni::JniRef<Self> as #nekojni_internal::ExtractSelfParam<'_>>
                     ::extract(env, this, id_param)
-            },
-        ),
-        FuncSelfMode::SelfMut => (
-            quote! { id_param: u32, },
-            quote! { #nekojni::signatures::Type::Int, },
-            quote_spanned! { sig_span =>
+            })
+        }
+        FuncSelfMode::SelfMut => {
+            (quote! { id_param: u32, }, quote! { "I", }, quote_spanned! { sig_span =>
                 <#nekojni::JniRefMut<Self> as #nekojni_internal::ExtractSelfParam<'_>>
                     ::extract(env, this, id_param)
-            },
-        ),
-        FuncSelfMode::EnvRef(ty) | FuncSelfMode::EnvMut(ty) => (
-            quote! { id_param: u32, },
-            quote! { #nekojni::signatures::Type::Int, },
-            quote_spanned! { sig_span =>
+            })
+        }
+        FuncSelfMode::EnvRef(ty) | FuncSelfMode::EnvMut(ty) => {
+            (quote! { id_param: u32, }, quote! { "I", }, quote_spanned! { sig_span =>
                 <#ty as #nekojni_internal::ExtractSelfParam<'_>>
                     ::extract(env, this, id_param)
-            },
-        ),
+            })
+        }
         FuncSelfMode::Static => (quote!(), quote!(), quote!()),
     };
     let (self_param, mut fn_call_body, is_static) = match &self_mode {
@@ -544,7 +530,6 @@ fn method_wrapper_exported(
     let wrapper_name = components.gensym(&format!("wrapper_{rust_name_str}"));
     let exported_method = components.gensym("EXPORTED_METHOD");
 
-    let method_sig_ret_ty = components.gensym("METHOD_SIG_RET_TY");
     let method_sig = components.gensym("METHOD_SIG");
     let method_sig_native = components.gensym("METHOD_SIG_NATIVE");
 
@@ -591,10 +576,7 @@ fn method_wrapper_exported(
             }
         });
     let java_sig_params = quote_spanned! { sig_span =>
-        #(
-            <#param_types as #nekojni::conversions::JavaConversionJavaType>
-                ::JAVA_TYPE,
-        )*
+        #(<#param_types as #nekojni::conversions::JavaConversionType>::JNI_TYPE,)*
     };
     let (method_sig, method_sig_native) = if is_static {
         (method_sig.clone(), method_sig.clone())
@@ -602,33 +584,25 @@ fn method_wrapper_exported(
         components
             .generated_private_items
             .extend(quote_spanned! { sig_span =>
-                const #method_sig_native: #nekojni::signatures::MethodSig =
-                    #nekojni::signatures::MethodSig {
-                        ret_ty: #method_sig_ret_ty,
-                        params: #nekojni::signatures::StaticList::Borrowed({
-                            const LIST: &[#nekojni::signatures::Type] = &[
-                                #extra_param_java
-                                #java_sig_params
-                            ];
-                            LIST
-                        }),
-                    };
+                const #method_sig_native: &'static str = #nekojni_internal::constcat!(
+                    "(",
+                    #extra_param_java
+                    #java_sig_params
+                    ")",
+                    <#ret_ty as #nekojni_internal::MethodReturn>::JNI_RETURN_TYPE
+                );
             });
         (method_sig, method_sig_native)
     };
     components
         .generated_private_items
         .extend(quote_spanned! { sig_span =>
-            const #method_sig_ret_ty: #nekojni::signatures::ReturnType =
-                <#ret_ty as #nekojni_internal::MethodReturn>::JAVA_RETURN_TYPE;
-            const #method_sig: #nekojni::signatures::MethodSig =
-                #nekojni::signatures::MethodSig {
-                    ret_ty: #method_sig_ret_ty,
-                    params: #nekojni::signatures::StaticList::Borrowed({
-                        const LIST: &[#nekojni::signatures::Type] = &[#java_sig_params];
-                        LIST
-                    }),
-                };
+            const #method_sig: &'static str = #nekojni_internal::constcat!(
+                "(",
+                #java_sig_params
+                ")",
+                <#ret_ty as #nekojni_internal::MethodReturn>::JNI_RETURN_TYPE
+            );
 
             pub const #exported_method: #nekojni_internal::exports::ExportedItem =
                 #nekojni_internal::exports::ExportedItem::NativeMethodWrapper {
@@ -636,6 +610,7 @@ fn method_wrapper_exported(
                     name: #java_name,
                     signature: #method_sig,
                     native_name: #rust_name_str,
+                    native_signature: #method_sig_native,
                     has_id_param: !#is_static,
                 };
             pub const #native_export: #nekojni_internal::exports::RustNativeMethod =

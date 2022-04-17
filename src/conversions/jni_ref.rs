@@ -6,9 +6,7 @@ use jni::objects::JObject;
 
 impl<'env, T: JavaClass<'env>> JavaConversionType for JniRef<'env, T> {
     type JavaType = jobject;
-}
-impl<'env, T: JavaClass<'env>> JavaConversionJavaType for JniRef<'env, T> {
-    const JAVA_TYPE: Type<'static> = T::JAVA_TYPE;
+    const JNI_TYPE: &'static str = T::JNI_TYPE_SIG;
 }
 unsafe impl<'env, T: JavaClass<'env>> JavaConversion<'env> for JniRef<'env, T> {
     fn to_java(&self, _: JniEnv<'env>) -> Self::JavaType {

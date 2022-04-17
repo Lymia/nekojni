@@ -1,12 +1,10 @@
 use super::*;
 use crate::internal::panicking::MethodReturn;
-use jni::objects::{JObject, JString};
+use jni::objects::JObject;
 
 impl JavaConversionType for str {
     type JavaType = jobject;
-}
-impl JavaConversionJavaType for str {
-    const JAVA_TYPE: Type<'static> = Type::class(&["java", "lang"], "String");
+    const JNI_TYPE: &'static str = "Ljava/lang/String;";
 }
 unsafe impl<'env> JavaConversion<'env> for str {
     fn to_java(&self, env: JniEnv<'env>) -> Self::JavaType {
@@ -38,9 +36,7 @@ unsafe impl<'env> JavaConversion<'env> for str {
 
 impl JavaConversionType for String {
     type JavaType = jobject;
-}
-impl JavaConversionJavaType for String {
-    const JAVA_TYPE: Type<'static> = Type::class(&["java", "lang"], "String");
+    const JNI_TYPE: &'static str = "Ljava/lang/String;";
 }
 unsafe impl<'env> JavaConversion<'env> for String {
     fn to_java(&self, env: JniEnv<'env>) -> Self::JavaType {
@@ -65,9 +61,7 @@ unsafe impl<'env> JavaConversionOwned<'env> for String {
 
 impl JavaConversionType for [u8] {
     type JavaType = jobject;
-}
-impl JavaConversionJavaType for [u8] {
-    const JAVA_TYPE: Type<'static> = Type::Boolean.array();
+    const JNI_TYPE: &'static str = "[B";
 }
 unsafe impl<'env> JavaConversion<'env> for [u8] {
     fn to_java(&self, env: JniEnv<'env>) -> Self::JavaType {
@@ -99,9 +93,7 @@ unsafe impl<'env> JavaConversion<'env> for [u8] {
 
 impl JavaConversionType for Vec<u8> {
     type JavaType = jobject;
-}
-impl JavaConversionJavaType for Vec<u8> {
-    const JAVA_TYPE: Type<'static> = Type::Boolean.array();
+    const JNI_TYPE: &'static str = "[B";
 }
 unsafe impl<'env> JavaConversion<'env> for Vec<u8> {
     fn to_java(&self, env: JniEnv<'env>) -> Self::JavaType {

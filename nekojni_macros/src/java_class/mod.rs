@@ -12,8 +12,7 @@ use syn::{parse2, spanned::Spanned, ImplItem, ItemImpl, Type};
 pub(crate) struct JavaClassCtx {
     self_ty: TokenStream,
 
-    class_name: TokenStream,
-    class_name_str: String,
+    class_name: String,
     settings: MacroArgs,
     sym_uid: usize,
 
@@ -129,45 +128,26 @@ fn jni_process_impl(
             format!("{package_str}{package_dot}{class_simple_name}")
         }
     };
-    let class_name = match ClassName::parse_java(&class_name) {
-        Ok(v) => v,
-        Err(e) => error(attr.span(), format!("Could not parse class name: {e:?}"))?,
-    };
 
+    let class_name = parse_class_name(&class_name)?.display_jni().to_string();
     let cl_flags = args.parse_flags(&attr)?;
-    let this_class = class_name.display_jni().to_string();
     let cl_id = super::chain_next();
 
     // Parse the supertypes.
     let extends_class = match &args.extends {
-        Some(x) => Some(match ClassName::parse_java(&x) {
-            Ok(v) => v,
-            Err(e) => error(attr.span(), format!("Could not parse class name: {e:?}"))?,
-        }),
+        Some(x) => Some(parse_class_name(&x)?.display_jni().to_string()),
         None => None,
     };
     let mut implements_classes = Vec::new();
     for class in &args.implements {
-        implements_classes.push(match ClassName::parse_java(&class) {
-            Ok(v) => v,
-            Err(e) => error(attr.span(), format!("Could not parse class name: {e:?}"))?,
-        });
+        implements_classes.push(parse_class_name(&class)?.display_jni().to_string());
     }
 
     // Build the context.
     let impl_ty = &impl_block.self_ty;
-    let class_name_toks = crate::signatures::dump_class_name(&ctx, &class_name);
-    let extends_toks = extends_class
-        .as_ref()
-        .map(|x| crate::signatures::dump_class_name(&ctx, x));
-    let implements_toks: Vec<_> = implements_classes
-        .iter()
-        .map(|x| crate::signatures::dump_class_name(&ctx, x))
-        .collect();
     let mut components = JavaClassCtx {
         self_ty: quote! { #impl_ty },
-        class_name: class_name_toks.clone(),
-        class_name_str: class_name.display_jni().to_string(),
+        class_name: class_name.clone(),
         settings: args,
         sym_uid: 0,
         generated_impls: Default::default(),
@@ -226,7 +206,7 @@ fn jni_process_impl(
             ) -> #nekojni::Result<#nekojni::JniRef<'env, Self>>
                 where Self: #nekojni::objects::JavaClass<'env>
             {
-                #nekojni_internal::jni_ref::new_rust(env, #this_class, obj, id)
+                #nekojni_internal::jni_ref::new_rust(env, #class_name, obj, id)
             }
         }
     };
@@ -234,16 +214,16 @@ fn jni_process_impl(
         quote! { #std::option::Option::None }
     } else {
         let access = enumset_to_toks(&ctx, quote!(#nekojni_internal::CFlags), cl_flags);
-        let extends = match extends_toks {
-            Some(toks) => quote! { #std::option::Option::Some(#toks) },
+        let extends = match extends_class {
+            Some(name) => quote! { #std::option::Option::Some(#name) },
             None => quote! { #std::option::Option::None },
         };
         quote! {
             #std::option::Option::Some(#nekojni_internal::exports::ExportedClass {
                 access: #access,
-                name: #class_name_toks,
+                name: #class_name,
                 super_class: #extends,
-                implements: &[#(#implements_toks,)*],
+                implements: &[#(#implements_classes,)*],
 
                 id_field_name: "njni$$i",
                 late_init: &[],
@@ -278,10 +258,10 @@ fn jni_process_impl(
             }
             impl<'env> #nekojni_internal::JavaClassImpl<'env> for #impl_ty {
                 const INIT_ID: usize = #cl_id;
-                const JAVA_TYPE: #nekojni::signatures::Type<'static> =
-                    #nekojni::signatures::Type::new(
-                        #nekojni::signatures::BasicType::Class(#class_name_toks)
-                    );
+                const JNI_TYPE: &'static str = #class_name;
+                const JNI_TYPE_SIG: &'static str =
+                    #nekojni_internal::constcat!("L", #class_name, ";");
+
                 #create_ref
                 type Cache = ExportedClassCache<'env>;
             }
@@ -312,7 +292,7 @@ fn jni_process_impl(
 
             static CLASS_INFO: #nekojni_internal::JavaClassInfo =
                 #nekojni_internal::JavaClassInfo {
-                    name: &#class_name_toks,
+                    name: #class_name,
                     exported: &#class_info,
                 };
             fn append_to_list(classes: &crate::__njni_module_info::GatherClasses) {
