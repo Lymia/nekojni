@@ -1,6 +1,5 @@
 use crate::{conversions::JavaConversionOwned, errors::*, jni_env::JniEnv};
 use jni::objects::JValue;
-use nekojni_signatures::ReturnType;
 
 pub trait ImportReturnTy<'env> {
     fn from_return_ty(from: &str, env: JniEnv<'env>, value: Result<JValue<'env>>) -> Self;

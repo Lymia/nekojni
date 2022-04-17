@@ -6,8 +6,6 @@ use std::{
     ops::Deref,
 };
 
-// TODO: Assume primitives in signatures (from Scala) are wrapped generics.
-
 #[derive(Parser)]
 #[grammar = "java_signature.pest"]
 struct JavaParser;
@@ -34,17 +32,13 @@ impl JavaParser {
     }
 
     fn ty(input: Node) -> Result<Type> {
-        let (name, generics, braces) = match_nodes!(input.children();
-            [path(name), ty_array_braces(braces)..] =>
-                (name, StaticList::Borrowed(&[]), braces),
-            [path(name), ty_generics(generics), ty_array_braces(braces)..] =>
-                (name, StaticList::Owned(generics), braces),
+        let (name, braces) = match_nodes!(input.children();
+            [path(name), ty_array_braces(braces)..] => (name, braces),
         );
-        let mut base = if name.package.is_empty() {
+        let base = if name.package.is_empty() {
             match name.name {
-                // java primitives
                 "byte" | "short" | "int" | "long" | "float" | "double" | "boolean" | "char" => {
-                    let prim = match name.name {
+                    match name.name {
                         "byte" => Type::Byte,
                         "short" => Type::Short,
                         "int" => Type::Int,
@@ -54,54 +48,23 @@ impl JavaParser {
                         "boolean" => Type::Boolean,
                         "char" => Type::Char,
                         _ => unreachable!(),
-                    };
-                    if !generics.is_empty() {
-                        return Err(input.error("Primitive types cannot be generic."));
-                    } else {
-                        return Ok(prim.array_dim(braces.count()));
                     }
                 }
-
-                // scala primitives
-                "Byte" | "Short" | "Int" | "Long" | "Float" | "Double" | "Boolean" | "Char"
-                | "Array" => {
-                    return Err(input.error(format!(
-                        "{} is a Scala primitive type, and will cause issues with codegen in \
-                        that language. If you mean the Java wrapper class, use the full \
-                        `java.lang.*` prefix.",
-                        name.name
-                    )))
-                }
-
-                // random class in base package
                 _ => Type::new(BasicType::Class(name)),
             }
         } else {
             Type::new(BasicType::Class(name))
         };
-
-        // we have a normal class type
-        for ty in generics.as_slice() {
-            if ty.is_primitive() {
-                return Err(input.error("Primitive types cannot be used as type parameters."));
-            }
-        }
-        base.generics = generics;
         Ok(base.array_dim(braces.count()))
     }
     fn ty_array_braces(_input: Node) -> Result<()> {
         Ok(())
     }
-    fn ty_generics(input: Node) -> Result<Vec<Type>> {
-        Ok(match_nodes!(input.children();
-            [ty(params)..] => params.collect(),
-        ))
-    }
 
     fn sig(input: Node) -> Result<MethodSig> {
         Ok(match_nodes!(input.children();
             [sig_param_list(params)] => {
-                MethodSig::void_owned(&params)
+                MethodSig::new_owned(Type::Void, &params)
             },
             [sig_param_list(params), ty(ret_ty)] => {
                 MethodSig::new_owned(ret_ty, &params)
@@ -146,8 +109,6 @@ impl<'a> MethodSig<'a> {
 }
 impl<'a> Type<'a> {
     /// Parses a type from a Java-like format.
-    ///
-    /// TODO: Document format
     pub fn parse_java(source: &'a str) -> Result<Self> {
         let inputs = JavaParser::parse(Rule::full_ty, source)?;
         let input = inputs.single()?;
@@ -156,8 +117,6 @@ impl<'a> Type<'a> {
 }
 impl<'a> ClassName<'a> {
     /// Parses a class name from a Java-like format.
-    ///
-    /// TODO: Document format
     pub fn parse_java(source: &'a str) -> Result<Self> {
         let inputs = JavaParser::parse(Rule::full_path, source)?;
         let input = inputs.single()?;
@@ -183,7 +142,7 @@ struct DisplayMethodSignatureJava<'a>(&'a MethodSig<'a>);
 impl<'a> Display for DisplayMethodSignatureJava<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         display_params(self.0, f)?;
-        if self.0.ret_ty != ReturnType::Void {
+        if self.0.ret_ty != Type::Void {
             f.write_str(" -> ")?;
             Display::fmt(&self.0.ret_ty.display_java(), f)?;
         }
@@ -197,38 +156,10 @@ impl<'a> MethodSig<'a> {
     }
 }
 
-struct DisplayReturnTypeJava<'a>(&'a ReturnType<'a>);
-impl<'a> Display for DisplayReturnTypeJava<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self.0 {
-            ReturnType::Void => f.write_str("void"),
-            ReturnType::Ty(ty) => Display::fmt(&ty.display_java(), f),
-        }
-    }
-}
-impl<'a> ReturnType<'a> {
-    /// Displays this object in Java syntax.
-    pub fn display_java(&'a self) -> impl Display + 'a {
-        DisplayReturnTypeJava(self)
-    }
-}
-
 struct DisplayTypeJava<'a>(&'a Type<'a>);
 impl<'a> Display for DisplayTypeJava<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Display::fmt(&self.0.basic_sig.display_java(), f)?;
-        if !self.0.generics.is_empty() {
-            f.write_char('<')?;
-            let mut is_first = true;
-            for generic in self.0.generics.as_slice() {
-                if !is_first {
-                    f.write_str(", ")?;
-                }
-                Display::fmt(&generic.display_java(), f)?;
-                is_first = false;
-            }
-            f.write_char('>')?;
-        }
         for _ in 0..self.0.array_dim {
             f.write_str("[]")?;
         }
@@ -254,6 +185,7 @@ impl<'a> Display for DisplayBasicTypeJava<'a> {
             BasicType::Double => f.write_str("double"),
             BasicType::Boolean => f.write_str("boolean"),
             BasicType::Char => f.write_str("char"),
+            BasicType::Void => f.write_str("void"),
             BasicType::Class(class) => Display::fmt(&class.display_java(), f),
         }
     }

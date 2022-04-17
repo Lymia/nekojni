@@ -14,7 +14,7 @@ use crate::{
 };
 use byteorder::{WriteBytesExt, BE};
 use enumset::EnumSet;
-use nekojni_signatures::{ClassName, MethodSig, Type};
+use nekojni_signatures::{ClassName, Type};
 use std::{
     io::{Cursor, Error, Write},
     ops::{Deref, DerefMut},

@@ -4,9 +4,8 @@ ident = @{ ident_start ~ ident_char* }
 ident_start = @{ 'a'..'z' | 'A'..'Z' | "$" | "_" }
 ident_char = @{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "$" | "_" }
 
-ty = { path ~ ty_generics? ~ ty_array_braces* }
+ty = { path ~ ty_array_braces* }
 ty_array_braces = { "[" ~ "]" }
-ty_generics = { "<" ~ ty ~ ("," ~ ty)* ~ ">" }
 
 sig = { "(" ~ sig_param_list? ~ ")" ~ ("->" ~ ty)? }
 sig_param_list = { (ty ~ ("," ~ ty)*)? }

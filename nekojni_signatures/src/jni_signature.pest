@@ -2,13 +2,11 @@ ident = @{ ident_char+ }
 ident_char = @{ ' '..'-' | '0'..':' | "=" | '?'..'Z' | '\\'..'~' }
 
 ty = { ty_array_head* ~ (ty_prim | ty_class) }
-ty_prim = { "Z" | "B" | "C" | "S" | "I" | "J" | "F" | "D" }
-ty_class = { "L" ~ path ~ ty_generics? ~ ";" }
-ty_generics = { "<" ~ ty+ ~ ">" }
+ty_prim = { "Z" | "B" | "C" | "S" | "I" | "J" | "F" | "D" | "V" }
+ty_class = { "L" ~ path ~ ";" }
 ty_array_head = { "[" }
 
-sig = { "(" ~ ty* ~ ")" ~ ("V" | sig_ret) }
-sig_ret = { ty }
+sig = { "(" ~ ty* ~ ")" ~ ty }
 
 path = { ident ~ ("/" ~ ident)* }
 

@@ -1,10 +1,8 @@
 use crate::{errors::*, JniEnv};
 use enumset::EnumSet;
-use jni::{signature::JavaType::Method, strings::JNIString, NativeMethod};
+use jni::{strings::JNIString, NativeMethod};
 use nekojni_classfile::{CFlags, FFlags, MFlags};
-use nekojni_codegen::ClassExporter;
-use nekojni_signatures::{ClassName, MethodSig, StaticList, Type};
-use std::{collections::HashMap, ffi::c_void};
+use std::ffi::c_void;
 
 /// Represents something exported from a Java class defined in Rust.
 ///

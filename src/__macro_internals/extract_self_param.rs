@@ -1,4 +1,4 @@
-use crate::{conversions::*, java_class::JavaClass, JniEnv, JniRef, JniRefMut};
+use crate::{java_class::JavaClass, JniEnv, JniRef, JniRefMut};
 use jni::{objects::JObject, sys::jobject};
 
 pub trait ExtractSelfParam<'env> {

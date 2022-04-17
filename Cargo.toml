@@ -25,7 +25,6 @@ thiserror = "1.0.30"
 nekojni_classfile = { version = "0.1.0", path = "nekojni_classfile" }
 nekojni_codegen = { version = "0.1.0", path = "nekojni_codegen" }
 nekojni_macros = { version = "0.1.0", path = "nekojni_macros" }
-nekojni_signatures = { version = "0.1.0", path = "nekojni_signatures", features = ["jni"] }
 
 [workspace]
 members = ["nekojni_classfile", "nekojni_cli", "nekojni_codegen", "nekojni_macros", "nekojni_signatures"]

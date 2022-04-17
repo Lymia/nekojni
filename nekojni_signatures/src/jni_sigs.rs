@@ -43,6 +43,7 @@ impl JniParser {
                     "D" => Type::Double,
                     "Z" => Type::Boolean,
                     "C" => Type::Char,
+                    "V" => Type::Void,
                     _ => unreachable!(),
                 };
                 ty.array_dim(braces.count())
@@ -56,15 +57,8 @@ impl JniParser {
     }
     fn ty_class(input: Node) -> Result<Type> {
         Ok(match_nodes!(input.children();
-            [path(path), ty_generics(generics)] =>
-                Type::new_generic_owned(BasicType::Class(path), &generics),
             [path(path)] =>
                 Type::new(BasicType::Class(path)),
-        ))
-    }
-    fn ty_generics(input: Node) -> Result<Vec<Type>> {
-        Ok(match_nodes!(input.children();
-            [ty(ty)..] => ty.collect(),
         ))
     }
     fn ty_array_head(_input: Node) -> Result<()> {
@@ -73,19 +67,10 @@ impl JniParser {
 
     fn sig(input: Node) -> Result<MethodSig> {
         Ok(match_nodes!(input.children();
-            [ty(params)..] => {
-                let params: Vec<_> = params.collect();
-                MethodSig::void_owned(&params)
-            },
-            [ty(params).., sig_ret(ret_ty)] => {
+            [ty(params).., ty(ret_ty)] => {
                 let params: Vec<_> = params.collect();
                 MethodSig::new_owned(ret_ty, &params)
             },
-        ))
-    }
-    fn sig_ret(input: Node) -> Result<Type> {
-        Ok(match_nodes!(input.children();
-            [ty(ty)] => ty,
         ))
     }
 
@@ -153,57 +138,6 @@ impl<'a> MethodSig<'a> {
     }
 }
 
-struct DisplayMethodSignatureJniGeneric<'a>(&'a MethodSig<'a>);
-impl<'a> Display for DisplayMethodSignatureJniGeneric<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_char('(')?;
-        for param in self.0.params.deref() {
-            Display::fmt(&param.display_jni_generic(), f)?;
-        }
-        f.write_str(")")?;
-        Display::fmt(&self.0.ret_ty.display_jni_generic(), f)?;
-        Ok(())
-    }
-}
-impl<'a> MethodSig<'a> {
-    /// Displays this object in JNI descriptor syntax with generics.
-    pub fn display_jni_generic(&'a self) -> impl Display + 'a {
-        DisplayMethodSignatureJniGeneric(self)
-    }
-}
-
-struct DisplayReturnTypeJni<'a>(&'a ReturnType<'a>);
-impl<'a> Display for DisplayReturnTypeJni<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self.0 {
-            ReturnType::Void => f.write_str("V"),
-            ReturnType::Ty(ty) => Display::fmt(&ty.display_jni(), f),
-        }
-    }
-}
-impl<'a> ReturnType<'a> {
-    /// Displays this object in JNI descriptor syntax.
-    pub fn display_jni(&'a self) -> impl Display + 'a {
-        DisplayReturnTypeJni(self)
-    }
-}
-
-struct DisplayReturnTypeJniGeneric<'a>(&'a ReturnType<'a>);
-impl<'a> Display for DisplayReturnTypeJniGeneric<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self.0 {
-            ReturnType::Void => f.write_str("V"),
-            ReturnType::Ty(ty) => Display::fmt(&ty.display_jni_generic(), f),
-        }
-    }
-}
-impl<'a> ReturnType<'a> {
-    /// Displays this object in JNI descriptor syntax with generics.
-    pub fn display_jni_generic(&'a self) -> impl Display + 'a {
-        DisplayReturnTypeJniGeneric(self)
-    }
-}
-
 struct DisplayTypeJni<'a>(&'a Type<'a>);
 impl<'a> Display for DisplayTypeJni<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -221,37 +155,6 @@ impl<'a> Type<'a> {
     }
 }
 
-struct DisplayTypeJniGeneric<'a>(&'a Type<'a>);
-impl<'a> Display for DisplayTypeJniGeneric<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        for _ in 0..self.0.array_dim {
-            f.write_str("[")?;
-        }
-        match &self.0.basic_sig {
-            BasicType::Class(class) => {
-                f.write_char('L')?;
-                Display::fmt(&class.display_jni(), f)?;
-                if !self.0.generics.is_empty() {
-                    f.write_char('<')?;
-                    for generic in self.0.generics.as_slice() {
-                        Display::fmt(&generic.display_jni_generic(), f)?;
-                    }
-                    f.write_char('>')?;
-                }
-                f.write_char(';')?;
-            }
-            _ => Display::fmt(&self.0.basic_sig.display_jni(), f)?,
-        }
-        Ok(())
-    }
-}
-impl<'a> Type<'a> {
-    /// Displays this object in a JNI descriptor syntax with generics.
-    pub fn display_jni_generic(&'a self) -> impl Display + 'a {
-        DisplayTypeJniGeneric(self)
-    }
-}
-
 struct DisplayBasicTypeJni<'a>(&'a BasicType<'a>);
 impl<'a> Display for DisplayBasicTypeJni<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -264,6 +167,7 @@ impl<'a> Display for DisplayBasicTypeJni<'a> {
             BasicType::Double => f.write_str("D"),
             BasicType::Boolean => f.write_str("Z"),
             BasicType::Char => f.write_str("C"),
+            BasicType::Void => f.write_str("V"),
             BasicType::Class(class) => {
                 f.write_char('L')?;
                 Display::fmt(&class.display_jni(), f)?;

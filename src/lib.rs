@@ -27,10 +27,6 @@ pub mod objects {
 }
 
 #[doc(inline)]
-/// The module containing types that represent Java type signatures.
-pub use nekojni_signatures as signatures;
-
-#[doc(inline)]
 pub use nekojni_macros::{jni, jni_export};
 
 /// Generates types essential for the attributes of `nekojni` to work as intended.

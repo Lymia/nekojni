@@ -488,19 +488,19 @@ impl Instruction {
             }
             Instruction::new(ty) => {
                 out.write_u8(0xbb)?;
-                pool.class_str(ty).write(&mut out)?;
+                pool.class(ty).write(&mut out)?;
             }
             Instruction::anewarray(ty) => {
                 out.write_u8(0xbd)?;
-                pool.class_str(ty).write(&mut out)?;
+                pool.class(ty).write(&mut out)?;
             }
             Instruction::checkcast(ty) => {
                 out.write_u8(0xc0)?;
-                pool.class_str(ty).write(&mut out)?;
+                pool.class(ty).write(&mut out)?;
             }
             Instruction::aconst_class(str) => {
                 out.write_u8(0x13)?; // ldc_w
-                pool.class_str(str).write(&mut out)?;
+                pool.class(str).write(&mut out)?;
             }
             Instruction::aconst_str(str) => {
                 out.write_u8(0x13)?; // ldc_w

@@ -1,5 +1,4 @@
 use super::*;
-use crate::internal::panicking::MethodReturn;
 use jni::objects::JObject;
 
 impl JavaConversionType for str {

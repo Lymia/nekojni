@@ -4,7 +4,6 @@ pub mod object_id;
 
 use crate::{errors::*, java_class::exports::ExportedClass, JniEnv};
 use jni::objects::JObject;
-use nekojni_signatures::{ClassName, Type};
 
 // TODO: Generate native-image configurations.
 

@@ -1,5 +1,3 @@
-use crate::errors::*;
-
 pub trait Registration<const ID: usize> {
     fn run_chain_fwd(&self);
     fn run_chain_rev(&self);
