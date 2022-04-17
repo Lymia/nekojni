@@ -14,8 +14,8 @@ type Node<'i> = pest_consume::Node<'i, Rule, ()>;
 
 #[pest_consume::parser]
 impl JavaParser {
-    fn ident(input: Node) -> Result<&str> {
-        Ok(input.as_str())
+    fn ident(input: Node) -> Result<String> {
+        Ok(input.as_str().to_string())
     }
 
     fn path(input: Node) -> Result<ClassName> {
@@ -26,7 +26,7 @@ impl JavaParser {
                     Some(x) => x,
                     None => return Err(input.error("ClassName has no components??")),
                 };
-                ClassName::new_owned(&vec, name)
+                ClassName::new(vec, name)
             },
         ))
     }
@@ -36,9 +36,9 @@ impl JavaParser {
             [path(name), ty_array_braces(braces)..] => (name, braces),
         );
         let base = if name.package.is_empty() {
-            match name.name {
+            match name.name.as_str() {
                 "byte" | "short" | "int" | "long" | "float" | "double" | "boolean" | "char" => {
-                    match name.name {
+                    match name.name.as_str() {
                         "byte" => Type::Byte,
                         "short" => Type::Short,
                         "int" => Type::Int,
@@ -64,10 +64,10 @@ impl JavaParser {
     fn sig(input: Node) -> Result<MethodSig> {
         Ok(match_nodes!(input.children();
             [sig_param_list(params)] => {
-                MethodSig::new_owned(Type::Void, &params)
+                MethodSig::new(Type::Void, params)
             },
             [sig_param_list(params), ty(ret_ty)] => {
-                MethodSig::new_owned(ret_ty, &params)
+                MethodSig::new(ret_ty, params)
             },
         ))
     }
@@ -97,34 +97,34 @@ impl JavaParser {
     }
 }
 
-impl<'a> MethodSig<'a> {
+impl MethodSig {
     /// Parses a method signature from a Java-like format.
     ///
     /// TODO: Document format
-    pub fn parse_java(source: &'a str) -> Result<Self> {
+    pub fn parse_java(source: &str) -> Result<Self> {
         let inputs = JavaParser::parse(Rule::full_sig, source)?;
         let input = inputs.single()?;
         JavaParser::full_sig(input)
     }
 }
-impl<'a> Type<'a> {
+impl Type {
     /// Parses a type from a Java-like format.
-    pub fn parse_java(source: &'a str) -> Result<Self> {
+    pub fn parse_java(source: &str) -> Result<Self> {
         let inputs = JavaParser::parse(Rule::full_ty, source)?;
         let input = inputs.single()?;
         JavaParser::full_ty(input)
     }
 }
-impl<'a> ClassName<'a> {
+impl ClassName {
     /// Parses a class name from a Java-like format.
-    pub fn parse_java(source: &'a str) -> Result<Self> {
+    pub fn parse_java(source: &str) -> Result<Self> {
         let inputs = JavaParser::parse(Rule::full_path, source)?;
         let input = inputs.single()?;
         JavaParser::full_path(input)
     }
 }
 
-fn display_params<'a>(sig: &'a MethodSig<'a>, f: &mut Formatter<'_>) -> std::fmt::Result {
+fn display_params(sig: &MethodSig, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.write_char('(')?;
     let mut is_first = true;
     for param in sig.params.deref() {
@@ -138,7 +138,7 @@ fn display_params<'a>(sig: &'a MethodSig<'a>, f: &mut Formatter<'_>) -> std::fmt
     Ok(())
 }
 
-struct DisplayMethodSignatureJava<'a>(&'a MethodSig<'a>);
+struct DisplayMethodSignatureJava<'a>(&'a MethodSig);
 impl<'a> Display for DisplayMethodSignatureJava<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         display_params(self.0, f)?;
@@ -149,14 +149,14 @@ impl<'a> Display for DisplayMethodSignatureJava<'a> {
         Ok(())
     }
 }
-impl<'a> MethodSig<'a> {
+impl MethodSig {
     /// Displays this object in Java syntax.
-    pub fn display_java(&'a self) -> impl Display + 'a {
+    pub fn display_java<'a>(&'a self) -> impl Display + 'a {
         DisplayMethodSignatureJava(self)
     }
 }
 
-struct DisplayTypeJava<'a>(&'a Type<'a>);
+struct DisplayTypeJava<'a>(&'a Type);
 impl<'a> Display for DisplayTypeJava<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Display::fmt(&self.0.basic_sig.display_java(), f)?;
@@ -166,14 +166,14 @@ impl<'a> Display for DisplayTypeJava<'a> {
         Ok(())
     }
 }
-impl<'a> Type<'a> {
+impl Type {
     /// Displays this object in Java syntax.
-    pub fn display_java(&'a self) -> impl Display + 'a {
+    pub fn display_java<'a>(&'a self) -> impl Display + 'a {
         DisplayTypeJava(self)
     }
 }
 
-struct DisplayBasicTypeJava<'a>(&'a BasicType<'a>);
+struct DisplayBasicTypeJava<'a>(&'a BasicType);
 impl<'a> Display for DisplayBasicTypeJava<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.0 {
@@ -190,27 +190,27 @@ impl<'a> Display for DisplayBasicTypeJava<'a> {
         }
     }
 }
-impl<'a> BasicType<'a> {
+impl BasicType {
     /// Displays this object in Java syntax.
-    pub fn display_java(&'a self) -> impl Display + 'a {
+    pub fn display_java<'a>(&'a self) -> impl Display + 'a {
         DisplayBasicTypeJava(self)
     }
 }
 
-struct DisplayClassNameJava<'a>(&'a ClassName<'a>);
+struct DisplayClassNameJava<'a>(&'a ClassName);
 impl<'a> Display for DisplayClassNameJava<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for pkg in self.0.package.deref() {
             f.write_str(pkg)?;
             f.write_char('.')?;
         }
-        f.write_str(self.0.name)?;
+        f.write_str(&self.0.name)?;
         Ok(())
     }
 }
-impl<'a> ClassName<'a> {
+impl ClassName {
     /// Displays this object in Java syntax.
-    pub fn display_java(&'a self) -> impl Display + 'a {
+    pub fn display_java<'a>(&'a self) -> impl Display + 'a {
         DisplayClassNameJava(self)
     }
 }

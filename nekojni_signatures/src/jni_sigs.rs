@@ -14,8 +14,8 @@ type Node<'i> = pest_consume::Node<'i, Rule, ()>;
 
 #[pest_consume::parser]
 impl JniParser {
-    fn ident(input: Node) -> Result<&str> {
-        Ok(input.as_str())
+    fn ident(input: Node) -> Result<String> {
+        Ok(input.as_str().to_string())
     }
 
     fn path(input: Node) -> Result<ClassName> {
@@ -26,7 +26,7 @@ impl JniParser {
                     Some(x) => x,
                     None => return Err(input.error("ClassName has no components??")),
                 };
-                ClassName::new_owned(&vec, name)
+                ClassName::new(vec, name)
             },
         ))
     }
@@ -69,7 +69,7 @@ impl JniParser {
         Ok(match_nodes!(input.children();
             [ty(params).., ty(ret_ty)] => {
                 let params: Vec<_> = params.collect();
-                MethodSig::new_owned(ret_ty, &params)
+                MethodSig::new(ret_ty, params)
             },
         ))
     }
@@ -94,32 +94,32 @@ impl JniParser {
     }
 }
 
-impl<'a> MethodSig<'a> {
+impl MethodSig {
     /// Parses a method signature from a JNI format.
-    pub fn parse_jni(source: &'a str) -> Result<Self> {
+    pub fn parse_jni(source: &str) -> Result<Self> {
         let inputs = JniParser::parse(Rule::full_sig, source)?;
         let input = inputs.single()?;
         JniParser::full_sig(input)
     }
 }
-impl<'a> Type<'a> {
+impl Type {
     /// Parses a type from a JNI format
-    pub fn parse_jni(source: &'a str) -> Result<Self> {
+    pub fn parse_jni(source: &str) -> Result<Self> {
         let inputs = JniParser::parse(Rule::full_ty, source)?;
         let input = inputs.single()?;
         JniParser::full_ty(input)
     }
 }
-impl<'a> ClassName<'a> {
+impl ClassName {
     /// Parses a class name from a JNI format
-    pub fn parse_jni(source: &'a str) -> Result<Self> {
+    pub fn parse_jni(source: &str) -> Result<Self> {
         let inputs = JniParser::parse(Rule::full_path, source)?;
         let input = inputs.single()?;
         JniParser::full_path(input)
     }
 }
 
-struct DisplayMethodSignatureJni<'a>(&'a MethodSig<'a>);
+struct DisplayMethodSignatureJni<'a>(&'a MethodSig);
 impl<'a> Display for DisplayMethodSignatureJni<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_char('(')?;
@@ -131,14 +131,14 @@ impl<'a> Display for DisplayMethodSignatureJni<'a> {
         Ok(())
     }
 }
-impl<'a> MethodSig<'a> {
+impl MethodSig {
     /// Displays this object in JNI descriptor syntax.
-    pub fn display_jni(&'a self) -> impl Display + 'a {
+    pub fn display_jni<'a>(&'a self) -> impl Display + 'a {
         DisplayMethodSignatureJni(self)
     }
 }
 
-struct DisplayTypeJni<'a>(&'a Type<'a>);
+struct DisplayTypeJni<'a>(&'a Type);
 impl<'a> Display for DisplayTypeJni<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for _ in 0..self.0.array_dim {
@@ -148,14 +148,14 @@ impl<'a> Display for DisplayTypeJni<'a> {
         Ok(())
     }
 }
-impl<'a> Type<'a> {
+impl Type {
     /// Displays this object in JNI descriptor syntax.
-    pub fn display_jni(&'a self) -> impl Display + 'a {
+    pub fn display_jni<'a>(&'a self) -> impl Display + 'a {
         DisplayTypeJni(self)
     }
 }
 
-struct DisplayBasicTypeJni<'a>(&'a BasicType<'a>);
+struct DisplayBasicTypeJni<'a>(&'a BasicType);
 impl<'a> Display for DisplayBasicTypeJni<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.0 {
@@ -177,27 +177,27 @@ impl<'a> Display for DisplayBasicTypeJni<'a> {
         }
     }
 }
-impl<'a> BasicType<'a> {
+impl BasicType {
     /// Displays this object in JNI descriptor syntax.
-    pub fn display_jni(&'a self) -> impl Display + 'a {
+    pub fn display_jni<'a>(&'a self) -> impl Display + 'a {
         DisplayBasicTypeJni(self)
     }
 }
 
-struct DisplayClassNameJni<'a>(&'a ClassName<'a>);
+struct DisplayClassNameJni<'a>(&'a ClassName);
 impl<'a> Display for DisplayClassNameJni<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for pkg in self.0.package.deref() {
             f.write_str(pkg)?;
             f.write_char('/')?;
         }
-        f.write_str(self.0.name)?;
+        f.write_str(&self.0.name)?;
         Ok(())
     }
 }
-impl<'a> ClassName<'a> {
+impl ClassName {
     /// Displays this object in JNI descriptor syntax.
-    pub fn display_jni(&'a self) -> impl Display + 'a {
+    pub fn display_jni<'a>(&'a self) -> impl Display + 'a {
         DisplayClassNameJni(self)
     }
 }

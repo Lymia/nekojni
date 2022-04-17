@@ -20,37 +20,37 @@ impl<'a> Display for DisplayString<'a> {
     }
 }
 
-struct DisplayJniClassName<'a>(&'a ClassName<'a>);
+struct DisplayJniClassName<'a>(&'a ClassName);
 impl<'a> Display for DisplayJniClassName<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for package_name in self.0.package.deref() {
             Display::fmt(&DisplayString(package_name), f)?;
             f.write_char('_')?;
         }
-        Display::fmt(&DisplayString(self.0.name), f)?;
+        Display::fmt(&DisplayString(&self.0.name), f)?;
         Ok(())
     }
 }
-impl<'a> ClassName<'a> {
+impl ClassName {
     /// Displays this object as an JNI export symbol name.
-    pub fn display_jni_export(&'a self) -> impl Display + 'a {
+    pub fn display_jni_export<'a>(&'a self) -> impl Display + 'a {
         DisplayJniClassName(self)
     }
 }
 
-struct DisplayJniExport<'a>(&'a MethodName<'a>);
+struct DisplayJniExport<'a>(&'a MethodName);
 impl<'a> Display for DisplayJniExport<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str("Java_")?;
         Display::fmt(&self.0.class.display_jni_export(), f)?;
         f.write_char('_')?;
-        Display::fmt(&DisplayString(self.0.name), f)?;
+        Display::fmt(&DisplayString(&self.0.name), f)?;
         Ok(())
     }
 }
-impl<'a> MethodName<'a> {
+impl MethodName {
     /// Displays this object as an JNI export symbol name.
-    pub fn display_jni_export(&'a self) -> impl Display + 'a {
+    pub fn display_jni_export<'a>(&'a self) -> impl Display + 'a {
         DisplayJniExport(self)
     }
 }
