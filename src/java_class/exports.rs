@@ -36,11 +36,16 @@ pub enum ExportedItem {
 }
 
 /// A native method exported from JNI.
+#[derive(Debug)]
 pub struct RustNativeMethod {
     pub name: &'static str,
     pub sig: MethodSig<'static>,
     pub fn_ptr: *mut c_void,
     pub is_static: bool,
+}
+
+fn jni_native_name(name: &str, is_static: bool) -> String {
+    format!("njni$${}${}", name, if is_static { "s" } else { "m" })
 }
 
 /// A trait representing a Java class that may be exported via codegen.
@@ -49,22 +54,20 @@ pub struct ExportedClass {
     pub access: EnumSet<CFlags>,
     pub name: ClassName<'static>,
     pub super_class: Option<ClassName<'static>>,
-    pub implements: Option<ClassName<'static>>,
+    pub implements: &'static [ClassName<'static>],
 
     pub id_field_name: &'static str,
     pub late_init: &'static [&'static str],
 
-    pub get_exports: fn() -> Vec<ExportedItem>,
-    pub get_native_methods: fn() -> Vec<RustNativeMethod>,
+    pub exports: &'static [ExportedItem],
+    pub native_methods: &'static [RustNativeMethod],
 }
 impl ExportedClass {
     pub fn register_natives(&self, env: &JniEnv) -> Result<()> {
         let mut methods = Vec::new();
-        for method in (self.get_native_methods)() {
-            let name =
-                format!("njni$${}${}", method.name, if method.is_static { "s" } else { "m" });
+        for method in self.native_methods {
             methods.push(NativeMethod {
-                name: JNIString::from(name),
+                name: JNIString::from(jni_native_name(&method.name, method.is_static)),
                 sig: JNIString::from(method.sig.display_jni().to_string()),
                 fn_ptr: method.fn_ptr,
             });
@@ -88,7 +91,7 @@ impl ExportedClass {
             self.id_field_name,
         );
 
-        for exports in (self.get_exports)() {
+        for exports in self.exports {
             match exports {
                 ExportedItem::NativeConstructor {
                     flags,
@@ -98,9 +101,9 @@ impl ExportedClass {
                     super_signature,
                 } => {
                     class.export_constructor(
-                        flags,
+                        *flags,
                         &signature,
-                        native_name,
+                        &jni_native_name(native_name, true),
                         &native_signature,
                         &super_signature,
                         self.late_init,
@@ -114,7 +117,7 @@ impl ExportedClass {
                     has_id_param,
                 } => {
                     let mut params = Vec::new();
-                    if has_id_param {
+                    if *has_id_param {
                         params.push(Type::Int);
                     }
                     for param in signature.params.as_slice() {
@@ -126,20 +129,20 @@ impl ExportedClass {
                     };
 
                     class.export_native_wrapper(
-                        flags,
+                        *flags,
                         name,
                         &signature,
-                        native_name,
+                        &jni_native_name(native_name, flags.contains(MFlags::Static)),
                         &native_sig,
-                        has_id_param,
+                        *has_id_param,
                     );
                 }
                 ExportedItem::JavaField { flags, name, field } => {
-                    class.export_field(flags, name, &field);
+                    class.export_field(*flags, name, &field);
                 }
             }
         }
-        for method in (self.get_native_methods)() {
+        for method in self.native_methods {
             class.export_native(method.name, &method.sig, method.is_static);
         }
 

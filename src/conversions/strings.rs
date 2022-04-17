@@ -5,8 +5,10 @@ use jni::objects::{JObject, JString};
 impl JavaConversionType for str {
     type JavaType = jobject;
 }
-unsafe impl<'env> JavaConversion<'env> for str {
+impl JavaConversionJavaType for str {
     const JAVA_TYPE: Type<'static> = Type::class(&["java", "lang"], "String");
+}
+unsafe impl<'env> JavaConversion<'env> for str {
     fn to_java(&self, env: JniEnv<'env>) -> Self::JavaType {
         (*env.new_string(self).unwrap()).into_inner()
     }
@@ -37,8 +39,10 @@ unsafe impl<'env> JavaConversion<'env> for str {
 impl JavaConversionType for String {
     type JavaType = jobject;
 }
-unsafe impl<'env> JavaConversion<'env> for String {
+impl JavaConversionJavaType for String {
     const JAVA_TYPE: Type<'static> = Type::class(&["java", "lang"], "String");
+}
+unsafe impl<'env> JavaConversion<'env> for String {
     fn to_java(&self, env: JniEnv<'env>) -> Self::JavaType {
         str::to_java(self.as_str(), env)
     }
@@ -62,8 +66,10 @@ unsafe impl<'env> JavaConversionOwned<'env> for String {
 impl JavaConversionType for [u8] {
     type JavaType = jobject;
 }
-unsafe impl<'env> JavaConversion<'env> for [u8] {
+impl JavaConversionJavaType for [u8] {
     const JAVA_TYPE: Type<'static> = Type::Boolean.array();
+}
+unsafe impl<'env> JavaConversion<'env> for [u8] {
     fn to_java(&self, env: JniEnv<'env>) -> Self::JavaType {
         env.byte_array_from_slice(&self).unwrap()
     }
@@ -94,8 +100,10 @@ unsafe impl<'env> JavaConversion<'env> for [u8] {
 impl JavaConversionType for Vec<u8> {
     type JavaType = jobject;
 }
-unsafe impl<'env> JavaConversion<'env> for Vec<u8> {
+impl JavaConversionJavaType for Vec<u8> {
     const JAVA_TYPE: Type<'static> = Type::Boolean.array();
+}
+unsafe impl<'env> JavaConversion<'env> for Vec<u8> {
     fn to_java(&self, env: JniEnv<'env>) -> Self::JavaType {
         self.as_slice().to_java(env)
     }

@@ -7,7 +7,7 @@ pub struct TestClass {
 }
 
 #[jni_export]
-#[jni(package = "moe.lymia")]
+#[jni(package = "moe.lymia", extends = "java.lang.Thread")]
 impl TestClass {
     pub extern "Java" fn test_func(self: &JniRef<Self>, a: u32, b: u32, c: u32) -> u32 {}
     pub extern "Java" fn test_func_2(self: &JniRef<Self>, a: u32) {}
@@ -20,16 +20,24 @@ impl TestClass {
         self.counter += 1;
         self.counter
     }
+
     pub fn increment_foo_x(&mut self, x: u32, y: u32, z: u32) -> u32 {
         self.counter += x + y * z;
         self.counter
     }
+
     pub fn increment_foo_m(self: &mut JniRefMut<Self>, x: u32, y: &u32, z: &mut u32) -> u32 {
         self.counter += x + (*y) * (*z);
         self.counter
     }
-    pub fn increment_bar(self: &mut JniRef<Self>) -> u32 {
+
+    #[jni(open)]
+    pub fn increment_bar(self: &JniRef<Self>) -> u32 {
         self.counter
+    }
+
+    pub fn test_fn(self: &JniRef<Self>) -> u32 {
+        self.increment_bar()
     }
 }
 

@@ -1,11 +1,13 @@
 //! A module containing helper functions used throughout the macros implementation.
 
 use crate::errors::{Error, Result};
+use enumset::{EnumSet, EnumSetType};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as SynTokenStream};
 use quote::*;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use syn::{spanned::Spanned, *};
+use crate::MacroCtx;
 
 /// Creates an identifier with a format-like syntax.
 macro_rules! ident {
@@ -123,26 +125,17 @@ pub fn stream_span(attr: SynTokenStream) -> Span {
     head_span.join(tail_span).unwrap()
 }
 
-pub fn parse_rustdoc(doc: &[Attribute]) -> Result<Option<String>> {
-    let mut str = String::new();
-    for attr in doc {
-        if attr.path.segments.len() == 1 {
-            if last_path_segment(&attr.path) == "doc" {
-                match attr.parse_meta()? {
-                    Meta::Path(_) | Meta::List(_) => {
-                        error(attr.span(), "Could not parse `#[doc]` attribute.")?
-                    }
-                    Meta::NameValue(val) => match &val.lit {
-                        Lit::Str(s) => str.push_str(&s.value()),
-                        _ => error(attr.span(), "Could not parse `#[doc]` attribute.")?,
-                    },
-                }
-            }
-        }
+pub(crate) fn enumset_to_toks<T: EnumSetType + Debug>(
+    ctx: &MacroCtx,
+    ty: SynTokenStream,
+    set: EnumSet<T>,
+) -> SynTokenStream {
+    let nekojni_internal = &ctx.internal;
+
+    let mut accum = quote!();
+    for value in set {
+        let ident = Ident::new(&format!("{value:?}"), Span::call_site());
+        accum = quote!(#accum #ty::#ident |);
     }
-    if str.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(str))
-    }
+    quote!(#nekojni_internal::enumset::enum_set!(#accum))
 }

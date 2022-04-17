@@ -1,6 +1,13 @@
+mod param_traits;
+
 use crate::{errors::*, java_class::object_id::IdManager};
 use chashmap::CHashMap;
-use jni::{strings::JNIString, sys::jclass, JNIEnv, NativeMethod};
+use jni::{
+    objects::{JObject, JValue},
+    strings::JNIString,
+    sys::jclass,
+    JNIEnv, NativeMethod,
+};
 use lazy_static::lazy_static;
 use parking_lot::{lock_api::ArcRwLockUpgradableReadGuard, RwLock};
 use std::{
@@ -148,6 +155,37 @@ impl<'env> JniEnv<'env> {
     pub unsafe fn as_inner(&self) -> JNIEnv<'env> {
         self.env
     }
+
+    /// Returns the value of a field in an object.
+    ///
+    /// This can not retrieve private fields from a subclass of a class. If you need to do so, use
+    /// [`JniEnv::get_private_field`] instead.
+    pub fn get_field(&self, obj: JObject<'env>, name: &str, ty: &str) -> Result<JValue<'env>> {
+        unsafe { Ok(self.as_inner().get_field(obj, name, ty)?) }
+    }
+
+    // TODO: Finish
+    /*/// Returns the value of a private field in an object.
+    pub fn get_private_field<O>(
+        &self,
+        obj: JObject<'env>,
+        name: &str,
+        ty: &str,
+    ) -> Result<JValue<'env>> {
+        unsafe {
+            let env = self.as_inner();
+            env.get_field_id()
+
+            let obj = obj.into();
+            let class = self.auto_local(self.get_object_class(obj)?);
+
+            let parsed = JavaType::from_str(ty.as_ref())?;
+
+            let field_id: JFieldID = (&class, name, ty).lookup(self)?;
+
+            Ok(self.get_field_unchecked(obj, field_id, parsed)?)
+        }
+    }*/
 }
 
 // TODO: Temporary

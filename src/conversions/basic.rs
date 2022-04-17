@@ -3,8 +3,10 @@ use super::*;
 impl JavaConversionType for bool {
     type JavaType = jboolean;
 }
-unsafe impl<'env> JavaConversion<'env> for bool {
+impl JavaConversionJavaType for bool {
     const JAVA_TYPE: Type<'static> = Type::Boolean;
+}
+unsafe impl<'env> JavaConversion<'env> for bool {
     fn to_java(&self, _env: JniEnv<'env>) -> Self::JavaType {
         *self as u8
     }
@@ -30,8 +32,10 @@ macro_rules! simple_conversion {
         impl JavaConversionType for $rust_ty {
             type JavaType = $jni_ty;
         }
-        unsafe impl<'env> JavaConversion<'env> for $rust_ty {
+        impl JavaConversionJavaType for $rust_ty {
             const JAVA_TYPE: Type<'static> = $java_ty;
+        }
+        unsafe impl<'env> JavaConversion<'env> for $rust_ty {
             fn to_java(&self, _env: JniEnv<'env>) -> Self::JavaType {
                 *self
             }
@@ -63,8 +67,10 @@ macro_rules! numeric_conversion {
         impl JavaConversionType for $rust_ty {
             type JavaType = $jni_ty;
         }
-        unsafe impl<'env> JavaConversion<'env> for $rust_ty {
+        impl JavaConversionJavaType for $rust_ty {
             const JAVA_TYPE: Type<'static> = $java_ty;
+        }
+        unsafe impl<'env> JavaConversion<'env> for $rust_ty {
             fn to_java(&self, _env: JniEnv<'env>) -> Self::JavaType {
                 let val = *self;
                 assert!(

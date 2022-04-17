@@ -1,5 +1,7 @@
 use crate::{errors::*, java_class::JavaClassCtx, utils::*, MacroCtx};
 use darling::FromAttributes;
+use enumset::EnumSet;
+use nekojni_classfile::MFlags;
 use proc_macro2::{Span, TokenStream as SynTokenStream, TokenStream};
 use quote::{quote, quote_spanned};
 use syn::{parse2, spanned::Spanned, FnArg, ImplItemMethod, Pat, ReturnType, Signature, Type};
@@ -9,6 +11,48 @@ use syn::{parse2, spanned::Spanned, FnArg, ImplItemMethod, Pat, ReturnType, Sign
 pub(crate) struct FunctionAttrs {
     #[darling(default)]
     rename: Option<String>,
+
+    #[darling(default, rename = "internal")]
+    acc_internal: bool,
+    #[darling(default, rename = "protected")]
+    acc_protected: bool,
+    #[darling(default, rename = "private")]
+    acc_private: bool,
+    #[darling(default, rename = "open")]
+    acc_open: bool,
+    #[darling(default, rename = "abstract")]
+    acc_abstract: bool,
+    #[darling(default, rename = "synchronized")]
+    acc_synchronized: bool,
+}
+impl FunctionAttrs {
+    pub(crate) fn parse_flags(&self, span: &impl Spanned) -> Result<EnumSet<MFlags>> {
+        if !self.acc_open && self.acc_abstract {
+            error(span.span(), "`abstract` methods must also be `open`.")?;
+        }
+        if (self.acc_internal as u8) + (self.acc_protected as u8) + (self.acc_private as u8) > 1 {
+            error(span.span(), "Only one of `internal`, `protected` or `private` may be used.")?;
+        }
+
+        let mut flags = EnumSet::new();
+        if self.acc_protected {
+            flags.insert(MFlags::Protected);
+        } else if self.acc_private {
+            flags.insert(MFlags::Private);
+        } else if !self.acc_internal {
+            flags.insert(MFlags::Public);
+        }
+        if !self.acc_open {
+            flags.insert(MFlags::Final);
+        }
+        if self.acc_abstract {
+            flags.insert(MFlags::Abstract);
+        }
+        if self.acc_synchronized {
+            flags.insert(MFlags::Synchronized);
+        }
+        Ok(flags)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -281,7 +325,7 @@ fn method_wrapper_java(
     };
     let mut body = quote_spanned! { item_span =>
         const PARAMS: &'static [#nekojni::signatures::Type<'static>] = &[
-            #(<#param_types as #nekojni::conversions::JavaConversion>::JAVA_TYPE,)*
+            #(<#param_types as #nekojni::conversions::JavaConversionJavaType>::JAVA_TYPE,)*
         ];
         const RETURN_TY: #nekojni::signatures::ReturnType<'static> =
             <#ret_ty as #nekojni_internal::ImportReturnTy>::JAVA_TYPE;
@@ -347,6 +391,7 @@ fn method_wrapper_exported(
 
     // Java method name
     let rust_name = &item.sig.ident;
+    let rust_name_str = rust_name.to_string();
     let java_name = match &attrs.rename {
         None => heck::AsLowerCamelCase(item.sig.ident.to_string()).to_string(),
         Some(name) => name.clone(),
@@ -356,6 +401,17 @@ fn method_wrapper_exported(
     let item_span = item.span();
     let sig_span = item.sig.span();
     let output_span = item.sig.output.span();
+
+    // Parse function access
+    let m_flags = attrs.parse_flags(&item.sig)?;
+    if m_flags.contains(MFlags::Abstract) {
+        error(sig_span, "Concrete methods cannot be `abstract`.")?;
+    }
+    if !m_flags.contains(MFlags::Final) {
+        if let FuncSelfMode::SelfMut | FuncSelfMode::EnvMut(_) = &self_mode {
+            error(sig_span, "`open` methods cannot take `self` mutably.")?;
+        }
+    }
 
     // Parse the type signature of the function.
     let mut param_types: Vec<_> = args.iter().map(FuncArgMode::ty).collect();
@@ -367,28 +423,55 @@ fn method_wrapper_exported(
         param_names_param.push(components.gensym("param"));
     }
 
-    // Extract various important parameters
-    let extract_ref = match &self_mode {
-        FuncSelfMode::SelfRef => quote_spanned! { sig_span =>
-            <#nekojni::JniRef<Self> as #nekojni_internal::ExtractSelfParam<'_>>
-                ::extract(env, this)
-        },
-        FuncSelfMode::SelfMut => quote_spanned! { sig_span =>
-            <#nekojni::JniRefMut<Self> as #nekojni_internal::ExtractSelfParam<'_>>
-                ::extract(env, this)
-        },
-        FuncSelfMode::EnvRef(ty) | FuncSelfMode::EnvMut(ty) => quote_spanned! { sig_span =>
-            <#ty as #nekojni_internal::ExtractSelfParam<'_>>::extract(env, this)
-        },
-        FuncSelfMode::Static => quote!(),
+    // Copy the method for `open` functions into a private impl.
+    let rust_name = if attrs.acc_open {
+        let exported_method = components.gensym(&rust_name_str);
+        let mut item_copy = item.clone();
+        item_copy.sig.ident = exported_method.clone();
+        components
+            .generated_copied_impls
+            .extend(quote! { #item_copy });
+        quote! { #exported_method }
+    } else {
+        quote! { #rust_name }
     };
-    let (self_param, mut fn_call_body) = match &self_mode {
+
+    // Extract various important parameters
+    let (extra_param, extra_param_java, extract_ref) = match &self_mode {
+        FuncSelfMode::SelfRef => (
+            quote! { id_param: u32, },
+            quote! { #nekojni::signatures::Type::Int, },
+            quote_spanned! { sig_span =>
+                <#nekojni::JniRef<Self> as #nekojni_internal::ExtractSelfParam<'_>>
+                    ::extract(env, this, id_param)
+            },
+        ),
+        FuncSelfMode::SelfMut => (
+            quote! { id_param: u32, },
+            quote! { #nekojni::signatures::Type::Int, },
+            quote_spanned! { sig_span =>
+                <#nekojni::JniRefMut<Self> as #nekojni_internal::ExtractSelfParam<'_>>
+                    ::extract(env, this, id_param)
+            },
+        ),
+        FuncSelfMode::EnvRef(ty) | FuncSelfMode::EnvMut(ty) => (
+            quote! { id_param: u32, },
+            quote! { #nekojni::signatures::Type::Int, },
+            quote_spanned! { sig_span =>
+                <#ty as #nekojni_internal::ExtractSelfParam<'_>>
+                    ::extract(env, this, id_param)
+            },
+        ),
+        FuncSelfMode::Static => (quote!(), quote!(), quote!()),
+    };
+    let (self_param, mut fn_call_body, is_static) = match &self_mode {
         FuncSelfMode::SelfRef | FuncSelfMode::EnvRef(_) => (
             quote_spanned! { sig_span => this: #jni::sys::jobject },
             quote_spanned! { sig_span =>
                 let this_ref = unsafe { #extract_ref };
                 this_ref.#rust_name(#(#param_names_param,)*)
             },
+            false,
         ),
         FuncSelfMode::SelfMut | FuncSelfMode::EnvMut(_) => (
             quote_spanned! { sig_span => this: #jni::sys::jobject },
@@ -396,12 +479,14 @@ fn method_wrapper_exported(
                 let mut this_ref = unsafe { #extract_ref };
                 this_ref.#rust_name(#(#param_names_param,)*)
             },
+            false,
         ),
         FuncSelfMode::Static => (
             quote_spanned! { sig_span => _: #jni::sys::jclass },
             quote_spanned! { sig_span =>
                 Self::#rust_name(env, #(#param_names_param,)*)
             },
+            true,
         ),
     };
     for (i, arg) in args.iter().enumerate() {
@@ -438,17 +523,28 @@ fn method_wrapper_exported(
     }
 
     // Generate the JNI function
-    let wrapper_name = components.gensym(&format!("wrapper_{}", java_name));
+    let native_export = components.gensym("NATIVE_EXPORT");
+    let wrapper_name = components.gensym(&format!("wrapper_{rust_name_str}"));
+    let exported_method = components.gensym("EXPORTED_METHOD");
+
+    let method_sig_ret_ty = components.gensym("METHOD_SIG_RET_TY");
+    let method_sig = components.gensym("METHOD_SIG");
+    let method_sig_native = components.gensym("METHOD_SIG_NATIVE");
+
     let ret_ty = match &item.sig.output {
         ReturnType::Default => quote_spanned! { output_span => () },
         ReturnType::Type(_, ty) => quote_spanned! { output_span => #ty },
     };
+    let self_ty = &components.self_ty;
+    let access = enumset_to_toks(&ctx, quote!(#nekojni_internal::MFlags), m_flags);
+
     components
         .generated_private_impls
         .extend(quote_spanned! { sig_span =>
             extern "system" fn #wrapper_name<'env>(
                 env: #jni::JNIEnv<'env>,
                 #self_param,
+                #extra_param
                 #(#param_names_java: <#param_types as #nekojni::conversions::JavaConversionType>
                     ::JavaType,)*
             ) -> <#ret_ty as #nekojni_internal::MethodReturn>::ReturnTy {
@@ -457,8 +553,76 @@ fn method_wrapper_exported(
                 })
             }
         });
+    let java_sig_params = quote_spanned! { sig_span =>
+        #(
+            <#param_types as #nekojni::conversions::JavaConversionJavaType>
+                ::JAVA_TYPE,
+        )*
+    };
+    let (method_sig, method_sig_native) = if is_static {
+        (method_sig.clone(), method_sig.clone())
+    } else {
+        components
+            .generated_private_items
+            .extend(quote_spanned! { sig_span =>
+                const #method_sig_native: #nekojni::signatures::MethodSig =
+                    #nekojni::signatures::MethodSig {
+                        ret_ty: #method_sig_ret_ty,
+                        params: #nekojni::signatures::StaticList::Borrowed({
+                            const LIST: &[#nekojni::signatures::Type] = &[
+                                #extra_param_java
+                                #java_sig_params
+                            ];
+                            LIST
+                        }),
+                    };
+            });
+        (method_sig, method_sig_native)
+    };
+    components
+        .generated_private_items
+        .extend(quote_spanned! { sig_span =>
+            const #method_sig_ret_ty: #nekojni::signatures::ReturnType =
+                <#ret_ty as #nekojni_internal::MethodReturn>::JAVA_RETURN_TYPE;
+            const #method_sig: #nekojni::signatures::MethodSig =
+                #nekojni::signatures::MethodSig {
+                    ret_ty: #method_sig_ret_ty,
+                    params: #nekojni::signatures::StaticList::Borrowed({
+                        const LIST: &[#nekojni::signatures::Type] = &[#java_sig_params];
+                        LIST
+                    }),
+                };
 
-    Ok(false)
+            pub const #exported_method: #nekojni_internal::exports::ExportedItem =
+                #nekojni_internal::exports::ExportedItem::NativeMethodWrapper {
+                    flags: #access,
+                    name: #java_name,
+                    signature: #method_sig,
+                    native_name: #rust_name_str,
+                    has_id_param: !#is_static,
+                };
+            pub const #native_export: #nekojni_internal::exports::RustNativeMethod =
+                #nekojni_internal::exports::RustNativeMethod {
+                    name: #rust_name_str,
+                    sig: #method_sig_native,
+                    fn_ptr: #self_ty::#wrapper_name as *mut #std::ffi::c_void,
+                    is_static: #is_static,
+                };
+        });
+    components
+        .native_methods
+        .push(quote_spanned! { sig_span => __njni_priv::#native_export });
+    components
+        .exports
+        .push(quote_spanned! { sig_span => __njni_priv::#exported_method });
+
+    // Create the wrapper function for `open` functions
+    if attrs.acc_open {
+        item.block.stmts.clear();
+        method_wrapper_java(ctx, components, item, attrs)?;
+    }
+
+    Ok(attrs.acc_open)
 }
 
 pub(crate) fn method_wrapper(

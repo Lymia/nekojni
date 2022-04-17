@@ -10,4 +10,5 @@ description = "This is an internal crate used by nekojni, and is not public API.
 byteorder = "1.4.3"
 cesu8 = "1.1.0"
 enumset = "1.0.8"
+
 nekojni_signatures = { version = "0.1.0", path = "../nekojni_signatures" }

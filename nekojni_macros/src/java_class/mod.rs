@@ -2,12 +2,16 @@ mod method_handler;
 
 use crate::{errors::*, utils::*, MacroCtx};
 use darling::FromAttributes;
+use enumset::EnumSet;
+use nekojni_classfile::CFlags;
 use nekojni_signatures::ClassName;
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use syn::{parse2, spanned::Spanned, ImplItem, ItemImpl, Type};
 
 pub(crate) struct JavaClassCtx {
+    self_ty: TokenStream,
+
     class_name: TokenStream,
     class_name_str: String,
     settings: MacroArgs,
@@ -15,15 +19,17 @@ pub(crate) struct JavaClassCtx {
 
     generated_impls: TokenStream,
     generated_private_impls: TokenStream,
+    generated_copied_impls: TokenStream,
+    generated_private_items: TokenStream,
     generated_type_checks: TokenStream,
     generated_cache: TokenStream,
 
-    fn_get_exports: TokenStream,
-    fn_get_native_methods: TokenStream,
+    exports: Vec<TokenStream>,
+    native_methods: Vec<TokenStream>,
 }
 impl JavaClassCtx {
     fn gensym(&mut self, prefix: &str) -> Ident {
-        let ident = ident!("nekojni__{}_{}", prefix, self.sym_uid);
+        let ident = ident!("__njni_{}_{}", prefix, self.sym_uid);
         self.sym_uid += 1;
         ident
     }
@@ -38,6 +44,36 @@ pub(crate) struct MacroArgs {
     java_name: Option<String>,
     #[darling(default)]
     java_path: Option<String>,
+
+    #[darling(default)]
+    extends: Option<String>,
+    #[darling(multiple)]
+    implements: Vec<String>,
+
+    #[darling(default, rename = "internal")]
+    acc_internal: bool,
+    #[darling(default, rename = "abstract")]
+    acc_abstract: bool,
+    #[darling(default, rename = "open")]
+    acc_open: bool,
+}
+impl MacroArgs {
+    pub(crate) fn parse_flags(&self, span: &impl Spanned) -> Result<EnumSet<CFlags>> {
+        if !self.acc_open && self.acc_abstract {
+            error(span.span(), "`abstract` classes must also be `open`.")?;
+        }
+        let mut flags = EnumSet::new();
+        if !self.acc_internal {
+            flags.insert(CFlags::Public);
+        }
+        if !self.acc_open {
+            flags.insert(CFlags::Final);
+        }
+        if self.acc_abstract {
+            flags.insert(CFlags::Abstract);
+        }
+        Ok(flags)
+    }
 }
 
 fn jni_process_impl(attr: TokenStream, item: TokenStream, is_import: bool) -> Result<TokenStream> {
@@ -92,19 +128,49 @@ fn jni_process_impl(attr: TokenStream, item: TokenStream, is_import: bool) -> Re
         Err(e) => error(attr.span(), format!("Could not parse class name: {e:?}"))?,
     };
 
+    let cl_flags = args.parse_flags(&attr)?;
+    let this_class = class_name.display_jni().to_string();
+
+    // Parse the supertypes.
+    let extends_class = match &args.extends {
+        Some(x) => Some(match ClassName::parse_java(&x) {
+            Ok(v) => v,
+            Err(e) => error(attr.span(), format!("Could not parse class name: {e:?}"))?,
+        }),
+        None => None,
+    };
+    let mut implements_classes = Vec::new();
+    for class in &args.implements {
+        implements_classes.push(match ClassName::parse_java(&class) {
+            Ok(v) => v,
+            Err(e) => error(attr.span(), format!("Could not parse class name: {e:?}"))?,
+        });
+    }
+
     // Build the context.
+    let impl_ty = &impl_block.self_ty;
     let class_name_toks = crate::signatures::dump_class_name(&ctx, &class_name);
+    let extends_toks = extends_class
+        .as_ref()
+        .map(|x| crate::signatures::dump_class_name(&ctx, x));
+    let implements_toks: Vec<_> = implements_classes
+        .iter()
+        .map(|x| crate::signatures::dump_class_name(&ctx, x))
+        .collect();
     let mut components = JavaClassCtx {
+        self_ty: quote! { #impl_ty },
         class_name: class_name_toks.clone(),
         class_name_str: class_name.display_jni().to_string(),
         settings: args,
         sym_uid: 0,
         generated_impls: Default::default(),
         generated_private_impls: Default::default(),
+        generated_copied_impls: Default::default(),
+        generated_private_items: Default::default(),
         generated_type_checks: Default::default(),
         generated_cache: Default::default(),
-        fn_get_exports: Default::default(),
-        fn_get_native_methods: Default::default(),
+        exports: Default::default(),
+        native_methods: Default::default(),
     };
 
     // Process methods in the impl block
@@ -131,13 +197,64 @@ fn jni_process_impl(attr: TokenStream, item: TokenStream, is_import: bool) -> Re
     let std = &ctx.std;
     let jni = &ctx.jni;
 
-    let impl_ty = &impl_block.self_ty;
-
     let generated_impls = &components.generated_impls;
     let generated_private_impls = &components.generated_private_impls;
+    let generated_copied_impls = &components.generated_copied_impls;
+    let generated_private_items = &components.generated_private_items;
     let generated_type_checks = &components.generated_type_checks;
     let generated_cache = &components.generated_cache;
+    let exports = &components.exports;
+    let native_methods = &components.native_methods;
 
+    let create_ref = if is_import {
+        todo!()
+    } else {
+        quote! {
+            fn default_ptr() -> &'static Self {
+                #nekojni_internal::default_ptr_fail()
+            }
+            fn create_jni_ref(
+                env: #nekojni::JniEnv<'env>,
+                obj: #jni::objects::JObject<'env>,
+                id: Option<u32>,
+            ) -> #nekojni::Result<#nekojni::JniRef<'env, Self>>
+                where Self: #nekojni::objects::JavaClass<'env>
+            {
+                #nekojni_internal::jni_ref::new_rust(env, #this_class, obj, id)
+            }
+        }
+    };
+    let class_info = if is_import {
+        quote! { #std::option::Option::None }
+    } else {
+        let access = enumset_to_toks(&ctx, quote!(#nekojni_internal::CFlags), cl_flags);
+        let extends = match extends_toks {
+            Some(toks) => quote! { #std::option::Option::Some(#toks) },
+            None => quote! { #std::option::Option::None },
+        };
+        quote! {
+            #std::option::Option::Some(#nekojni_internal::exports::ExportedClass {
+                access: #access,
+                name: #class_name_toks,
+                super_class: #extends,
+                implements: &[#(#implements_toks,)*],
+
+                id_field_name: "njni$$i",
+                late_init: &[],
+
+                exports: {
+                    const LIST: &'static [#nekojni_internal::exports::ExportedItem] =
+                        &[#(#exports,)*];
+                    LIST
+                },
+                native_methods: {
+                    const LIST: &'static [#nekojni_internal::exports::RustNativeMethod] =
+                        &[#(#native_methods,)*];
+                    LIST
+                },
+            })
+        }
+    };
     Ok(quote! {
         #impl_block
 
@@ -158,42 +275,41 @@ fn jni_process_impl(attr: TokenStream, item: TokenStream, is_import: bool) -> Re
                     #nekojni::signatures::Type::new(
                         #nekojni::signatures::BasicType::Class(#class_name_toks)
                     );
-                const CLASS_INFO: Option<#nekojni_internal::exports::ExportedClass> = None;
-                fn register_methods(&self, env: #nekojni::JniEnv) -> #nekojni::Result<()> {
-                    // TODO: register_methods
-                    #nekojni::Result::Ok(())
-                }
-                fn default_ptr() -> &'static Self {
-                    #nekojni_internal::default_ptr_fail()
-                }
-                fn create_jni_ref(
-                    env: #nekojni::JniEnv<'env>,
-                    obj: #jni::objects::JObject<'env>,
-                ) -> #nekojni::Result<#nekojni::JniRef<'env, Self>>
-                    where Self: #nekojni::objects::JavaClass<'env>
-                {
-                    #nekojni_internal::jni_ref::new_rust(env, obj)
-                }
+                const CLASS_INFO: Option<#nekojni_internal::exports::ExportedClass> = #class_info;
+                #create_ref
                 type Cache = ExportedClassCache<'env>;
             }
             impl<'env> #nekojni::objects::JavaClass<'env> for #impl_ty { }
             impl<'env> #nekojni_internal::RustContents<'env> for #impl_ty {
-                const ID_FIELD: &'static str = "njit$$i";
+                const ID_FIELD: &'static str = "njni$$i";
             }
 
+            // Module used to seperate out private `self.*` functions
             #[allow(unused)]
-            mod nekojni__private {
+            mod __njni_priv {
                 use super::*;
+                // Impl that contains method copied from the actual explicit code the private
+                // module (mostly due to `open` accessibility).
                 impl #impl_ty {
-                    #generated_private_impls
+                    #generated_copied_impls
                 }
+                // Module used to separate out generated methods from copied methods (so they
+                // can't be called easily from the former).
+                mod __njni_generated {
+                    use super::*;
+                    impl #impl_ty {
+                        #generated_private_impls
+                    }
+                    #generated_private_items
+                }
+                pub use __njni_generated::*;
             }
 
             #[allow(unused)]
-            mod nekojni__type_check {
+            mod __njni_typeck {
                 use super::*;
                 impl #impl_ty {
-                    fn nekojni__macro_generated_type_checks() {
+                    fn __njni_macro_generated_type_checks() {
                         #generated_type_checks
                     }
                 }

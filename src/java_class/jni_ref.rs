@@ -15,6 +15,9 @@ mod sealed {
     pub trait Sealed {}
 }
 
+// TODO: Deadlock detection of some sort.
+// TODO: Sort out locks from the same thread/JNIEnv more cleanly.
+
 /// A marker trait used to represent a possible mode of a [`JniRef`].
 pub trait JniRefType: sealed::Sealed {}
 
@@ -60,8 +63,8 @@ impl<'env, T: JavaClass<'env>, R: JniRefType> JniRef<'env, T, R> {
 
 impl<'env, T: JavaClass<'env>> JniRef<'env, T> {
     /// Upgrades this [`JniRef`] into a [`JniRefMut`]. As this requires an owning reference, this
-    /// may only be used in practice with references returned from Java functions.
-    pub fn upgrade(self) -> JniRefMut<'env, T> {
+    /// can only usually be used in practice with references returned from Java functions.
+    pub fn upgrade_ref(self) -> JniRefMut<'env, T> {
         JniRef {
             this: self.this,
             inner: match self.inner {
@@ -109,11 +112,16 @@ impl<'a, 'env: 'a, T: JavaClass<'env>> AsRef<JniEnv<'env>> for &'a JniRef<'env, 
 /// Creates a new [`JniRef`] from a JNI environment and a java object containing an ID.
 pub fn new_rust<'env, T: RustContents<'env>>(
     env: JniEnv<'env>,
+    this_class: &str,
     this: JObject<'env>,
+    id: Option<u32>,
 ) -> Result<JniRef<'env, T>> {
-    let id = match env.get_field(this, T::ID_FIELD, "I")? {
-        JValue::Int(i) => i as u32,
-        _ => unreachable!(),
+    let id = match id {
+        Some(id) => id,
+        None => match env.get_field(this, T::ID_FIELD, "I")? {
+            JValue::Int(i) => i as u32,
+            _ => unreachable!(),
+        },
     };
     let manager = env.get_id_manager::<T>();
     let lock = manager.get(id)?;

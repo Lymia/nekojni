@@ -16,12 +16,15 @@ pub trait JavaClassImpl<'env>: Sized + Send + Sync + 'static {
     const JAVA_TYPE: Type<'static>;
     const CLASS_INFO: Option<exports::ExportedClass> = None;
 
-    fn register_methods(&self, env: JniEnv) -> Result<()>;
-
     fn default_ptr() -> &'static Self;
 
-    fn create_jni_ref(env: JniEnv<'env>, obj: JObject<'env>) -> Result<jni_ref::JniRef<'env, Self>>
-    where Self: JavaClass<'env>;
+    fn create_jni_ref(
+        env: JniEnv<'env>,
+        obj: JObject<'env>,
+        id: Option<u32>,
+    ) -> Result<jni_ref::JniRef<'env, Self>>
+    where
+        Self: JavaClass<'env>;
 
     type Cache: Default + 'env;
 }

@@ -33,6 +33,17 @@ pub trait JavaConversionType {
     /// The type used for the exported function signature.
     type JavaType: JniAbiType;
 }
+/// Helper type that proves [`JavaConversion`]s with different lifetimes have the same Java type.
+pub trait JavaConversionJavaType: JavaConversionType {
+    /// The Java type used for this Rust object.
+    const JAVA_TYPE: Type<'static>;
+}
+/// Helper type that proves [`JavaReturnsConversion`]s with different lifetimes have the same Java
+/// return type.
+pub trait JavaConversionJavaReturnType: JavaConversionType {
+    /// The Java type used for this Rust object.
+    const JAVA_RETURN_TYPE: ReturnType<'static>;
+}
 
 /// Main trait that converts between Java and Rust types.
 ///
@@ -41,10 +52,7 @@ pub trait JavaConversionType {
 /// This is marked unsafe as returning raw pointers is inherently unsafe, despite the fact that
 /// the `jni` crate allows this to be done without any unsafety. The value of `JavaType` must be
 /// from the input [`JniEnv`] or else there will be an use-after-free.
-pub unsafe trait JavaConversion<'env>: JavaConversionType {
-    /// The Java type used for this Rust object.
-    const JAVA_TYPE: Type<'static>;
-
+pub unsafe trait JavaConversion<'env>: JavaConversionType + JavaConversionJavaType {
     /// Convert the Rust type into a Java type.
     ///
     /// # Safety
@@ -108,10 +116,9 @@ pub unsafe trait JavaConversionOwned<'env>: JavaConversion<'env> + Sized {
 /// This is marked unsafe as returning raw pointers is inherently unsafe, despite the fact that
 /// the `jni` crate allows this to be done without any unsafety. The value of `JavaType` must be
 /// from the input [`JniEnv`] or else there will be an use-after-free.
-pub unsafe trait JavaReturnConversion<'env>: JavaConversionType {
-    /// The Java type used for this Rust object.
-    const JAVA_RETURN_TYPE: ReturnType<'static>;
-
+pub unsafe trait JavaReturnConversion<'env>:
+    JavaConversionType + JavaConversionJavaReturnType
+{
     /// Convert the Rust type into a Java type.
     fn to_java_ret(&self, env: JniEnv<'env>) -> Self::JavaType;
 
@@ -123,13 +130,18 @@ pub unsafe trait JavaReturnConversion<'env>: JavaConversionType {
 impl JavaConversionType for () {
     type JavaType = ();
 }
-unsafe impl<'env> JavaReturnConversion<'env> for () {
+impl<'env> JavaConversionJavaReturnType for () {
     const JAVA_RETURN_TYPE: ReturnType<'static> = ReturnType::Void;
+}
+unsafe impl<'env> JavaReturnConversion<'env> for () {
     fn to_java_ret(&self, _: JniEnv<'env>) -> Self::JavaType {}
     fn null_ret() -> Self::JavaType {}
 }
-unsafe impl<'env, T: JavaConversion<'env>> JavaReturnConversion<'env> for T {
+
+impl<'env, T: JavaConversion<'env>> JavaConversionJavaReturnType for T {
     const JAVA_RETURN_TYPE: ReturnType<'static> = ReturnType::Ty(T::JAVA_TYPE);
+}
+unsafe impl<'env, T: JavaConversion<'env>> JavaReturnConversion<'env> for T {
     fn to_java_ret(&self, env: JniEnv<'env>) -> Self::JavaType {
         T::to_java(self, env)
     }
