@@ -95,10 +95,8 @@ macro_rules! jni_module {
 
                     // load all native methods from all classes
                     for class in info.class_info {
-                        if let Some(exported) = &class.exported {
-                            unsafe {
-                                exported.register_natives(env)?;
-                            }
+                        unsafe {
+                            class.exported.register_natives(env)?;
                         }
                     }
 

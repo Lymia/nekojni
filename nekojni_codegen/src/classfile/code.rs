@@ -53,6 +53,7 @@ impl Attribute for MethodWriter {
                 }
             }
 
+            println!("{instr:?} {cur_stack}");
             assert!(cur_stack <= i16::MAX as isize);
             assert!(cur_stack >= 0);
 
@@ -222,7 +223,7 @@ impl FieldData {
         }
     }
     fn make_ref(&self, pool: &mut PoolWriter) -> PoolId {
-        pool.field_ref_str(&self.class, &self.name, &self.desc)
+        pool.field_ref(&self.class, &self.name, &self.desc)
     }
 }
 
@@ -246,10 +247,10 @@ impl InvokeData {
         }
     }
     fn make_method_ref(&self, pool: &mut PoolWriter) -> PoolId {
-        pool.method_ref_str(&self.class, &self.name, &self.desc)
+        pool.method_ref(&self.class, &self.name, &self.desc)
     }
     fn make_interface_method_ref(&self, pool: &mut PoolWriter) -> PoolId {
-        pool.interface_method_ref_str(&self.class, &self.name, &self.desc)
+        pool.interface_method_ref(&self.class, &self.name, &self.desc)
     }
 }
 

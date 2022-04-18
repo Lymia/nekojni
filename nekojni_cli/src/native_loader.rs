@@ -9,13 +9,13 @@ use nekojni::{__macro_internals::*, *};
 use std::path::PathBuf;
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
-enum EntryPointPlatform {
+pub enum EntryPointPlatform {
     Windows,
     Macos,
     Linux,
 }
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
-enum EntryPointArch {
+pub enum EntryPointArch {
     X86,
     Amd64,
     AArch64,
@@ -28,10 +28,10 @@ pub struct LoadedBinary {
 
 #[derive(Clone, Debug)]
 pub struct ParsedBinary {
-    platform: EntryPointPlatform,
-    arch: EntryPointArch,
+    pub platform: EntryPointPlatform,
+    pub arch: EntryPointArch,
     entry_points: Vec<String>,
-    path: PathBuf,
+    pub path: PathBuf,
 }
 impl ParsedBinary {
     pub fn parse(path: PathBuf) -> Result<ParsedBinary> {

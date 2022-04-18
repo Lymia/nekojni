@@ -1,8 +1,8 @@
 use crate::{
-    classfile::{CFlags, ClassWriter, FFlags, MFlags, MethodWriter},
+    classfile::{ClassWriter, MethodWriter},
     signatures::{BasicType, ClassName, MethodSig, Type},
     utils::{push_param, return_param},
-    ClassData,
+    CFlags, ClassData, FFlags, MFlags,
 };
 use enumset::EnumSet;
 use std::collections::HashMap;
@@ -24,8 +24,8 @@ impl NativeClassWrapper {
         NativeClassWrapper {
             name: name.to_string(),
             class,
-            extends: name.to_string(),
-            id_param: name.to_string(),
+            extends: extends.to_string(),
+            id_param: id_param.to_string(),
             supporting: HashMap::new(),
         }
     }
@@ -210,7 +210,7 @@ impl NativeClassWrapper {
 
         // validate parameters
         if has_id_param {
-            assert_eq!(native_sig_params[0], Type::Int);
+            assert_eq!(native_sig.params[0], Type::Int);
         }
         assert_eq!(sig.ret_ty, native_sig.ret_ty);
         assert_eq!(native_sig_params, sig.params.as_slice());
@@ -223,7 +223,7 @@ impl NativeClassWrapper {
             0
         };
         if has_id_param {
-            code.getfield(&self.name, &self.id_param, "I");
+            code.dup().getfield(&self.name, &self.id_param, "I");
         }
         for param in native_sig_params {
             param_id += push_param(&mut code, param_id, &param);

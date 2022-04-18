@@ -660,7 +660,7 @@ pub(crate) fn method_wrapper(
         attrs.check_internal_used()?;
     }
 
-    // process the method itself
+    // process export to CLI tool
     if let Some(class_name) = &attrs.export_module_info {
         let class_name = match ClassName::parse_java(class_name) {
             Ok(v) => v,
@@ -685,6 +685,8 @@ pub(crate) fn method_wrapper(
 
         return Ok(false);
     }
+
+    // process the method itself
     if let Some(abi) = &item.sig.abi {
         if let Some(abi) = &abi.name {
             let abi = abi.value();

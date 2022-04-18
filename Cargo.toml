@@ -13,7 +13,6 @@ name = "test_classes"
 crate-type = ["cdylib"]
 
 [dependencies]
-bytemuck = "1.8.0"
 chashmap = "2.2.2"
 constcat = "0.1.1"
 enumset = "1.0.8"

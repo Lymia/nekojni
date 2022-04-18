@@ -12,7 +12,7 @@ fn replace_str_raw(data: &[u8], source_str: &[u8], target_str: &[u8]) -> Vec<u8>
             out.extend(&data[..i]);
             out.extend(&(target_str.len() as u16).to_be_bytes());
             out.extend(target_str);
-            out.extend(&data[..i + 2 + source_str.len()]);
+            out.extend(&data[i + 2 + source_str.len()..]);
             return out;
         }
     }

@@ -15,11 +15,11 @@ pub fn push_param(code: &mut MethodWriter, id: u16, ty: &Type) -> u16 {
             | BasicType::Boolean
             | BasicType::Char => {
                 code.iload(id);
-                2
+                1
             }
             BasicType::Long => {
                 code.lload(id);
-                1
+                2
             }
             BasicType::Float => {
                 code.fload(id);
@@ -51,7 +51,7 @@ pub fn return_param(code: &mut MethodWriter, ty: &Type) {
             BasicType::Float => code.freturn(),
             BasicType::Double => code.dreturn(),
             BasicType::Class(_) => code.areturn(),
-            BasicType::Void => code.areturn(),
+            BasicType::Void => code.vreturn(),
         };
     }
 }

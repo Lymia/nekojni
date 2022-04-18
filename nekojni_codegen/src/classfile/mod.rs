@@ -1,10 +1,8 @@
 mod attributes;
 mod code;
 mod constant_pool;
-mod flags;
 
 pub use code::{LabelId, MethodWriter};
-pub use flags::*;
 
 use crate::{
     classfile::{
@@ -12,6 +10,7 @@ use crate::{
         constant_pool::{PoolId, PoolWriter},
     },
     signatures::MethodSig,
+    CFlags, FFlags, MFlags,
 };
 use byteorder::{WriteBytesExt, BE};
 use enumset::EnumSet;

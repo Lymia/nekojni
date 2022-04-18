@@ -209,37 +209,48 @@ fn jni_process_impl(
             }
         }
     };
-    let class_info = if is_import {
-        quote! { #std::option::Option::None }
-    } else {
+
+    let add_to_list_fn = if !is_import && !is_internal {
         let access = enumset_to_toks(&ctx, quote!(#nekojni_internal::CFlags), cl_flags);
         let extends = match extends_class {
             Some(name) => quote! { #std::option::Option::Some(#name) },
             None => quote! { #std::option::Option::None },
         };
         quote! {
-            #std::option::Option::Some(#nekojni_internal::exports::ExportedClass {
-                access: #access,
-                name: #class_name,
-                super_class: #extends,
-                implements: &[#(#implements_classes,)*],
+            static CLASS_INFO: #nekojni_internal::JavaClassInfo =
+                #nekojni_internal::JavaClassInfo {
+                    name: #class_name,
+                    exported: #nekojni_internal::exports::ExportedClass {
+                        access: #access,
+                        name: #class_name,
+                        super_class: #extends,
+                        implements: &[#(#implements_classes,)*],
 
-                id_field_name: "njni$$i",
-                late_init: &[],
+                        id_field_name: "njni$$i",
+                        late_init: &[],
 
-                exports: {
-                    const LIST: &'static [#nekojni_internal::exports::ExportedItem] =
-                        &[#(#exports,)*];
-                    LIST
-                },
-                native_methods: {
-                    const LIST: &'static [#nekojni_internal::exports::RustNativeMethod] =
-                        &[#(#native_methods,)*];
-                    LIST
-                },
-            })
+                        exports: {
+                            const LIST: &'static [#nekojni_internal::exports::ExportedItem] =
+                                &[#(#exports,)*];
+                            LIST
+                        },
+                        native_methods: {
+                            const LIST: &'static [#nekojni_internal::exports::RustNativeMethod] =
+                                &[#(#native_methods,)*];
+                            LIST
+                        },
+                    },
+                };
+            fn append_to_list(classes: &crate::__njni_module_info::GatherClasses) {
+                classes.0.borrow_mut().push(&CLASS_INFO)
+            }
+        }
+    } else {
+        quote! {
+            fn append_to_list(classes: &crate::__njni_module_info::GatherClasses) {}
         }
     };
+
     Ok(quote! {
         #impl_block
 
@@ -289,14 +300,8 @@ fn jni_process_impl(
                 }
             }
 
-            static CLASS_INFO: #nekojni_internal::JavaClassInfo =
-                #nekojni_internal::JavaClassInfo {
-                    name: #class_name,
-                    exported: &#class_info,
-                };
-            fn append_to_list(classes: &crate::__njni_module_info::GatherClasses) {
-                classes.0.borrow_mut().push(&CLASS_INFO)
-            }
+            #add_to_list_fn
+
             impl<'a> #nekojni_internal::Registration<#cl_id>
                 for crate::__njni_module_info::GatherClasses<'a>
             {

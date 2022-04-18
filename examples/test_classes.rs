@@ -7,7 +7,7 @@ pub struct TestClass {
 }
 
 #[jni_export]
-#[jni(package = "moe.lymia", extends = "java.lang.Thread")]
+#[jni(package = "moe.lymia.test", extends = "java.lang.Thread")]
 impl TestClass {
     pub extern "Java" fn test_func(self: &JniRef<Self>, a: u32, b: u32, c: u32) -> u32 {}
     pub extern "Java" fn test_func_2(self: &JniRef<Self>, a: u32) {}

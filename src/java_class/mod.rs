@@ -41,7 +41,7 @@ pub trait JavaModuleImpl {
 #[derive(Copy, Clone, Debug)]
 pub struct JavaClassInfo {
     pub name: &'static str,
-    pub exported: &'static Option<ExportedClass>,
+    pub exported: ExportedClass,
 }
 
 #[repr(C)]
