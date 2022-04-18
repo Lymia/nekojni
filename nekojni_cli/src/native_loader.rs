@@ -8,16 +8,16 @@ use goblin::{
 use nekojni::{__macro_internals::*, *};
 use std::path::PathBuf;
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Hash)]
 pub enum EntryPointPlatform {
     Windows,
     Macos,
     Linux,
 }
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Hash)]
 pub enum EntryPointArch {
     X86,
-    Amd64,
+    X86_64,
     AArch64,
 }
 
@@ -47,7 +47,7 @@ impl ParsedBinary {
         };
         let arch_match = match self.arch {
             EntryPointArch::X86 => std::env::consts::ARCH == "x86",
-            EntryPointArch::Amd64 => std::env::consts::ARCH == "x86_64",
+            EntryPointArch::X86_64 => std::env::consts::ARCH == "x86_64",
             EntryPointArch::AArch64 => std::env::consts::ARCH == "aarch64",
         };
         plaf_match && arch_match
@@ -94,7 +94,7 @@ fn nekojni_parse_binary(path: PathBuf, so_data: &[u8]) -> Result<ParsedBinary> {
             jni_assert!(elf.header.e_type == ET_DYN, "ELF binary must be a dynamic library.");
             let arch = match elf.header.e_machine {
                 EM_386 => EntryPointArch::X86,
-                EM_X86_64 => EntryPointArch::Amd64,
+                EM_X86_64 => EntryPointArch::X86_64,
                 EM_AARCH64 => EntryPointArch::AArch64,
                 _ => jni_bail!("ELF binary has unsupported machine architecture."),
             };
@@ -117,7 +117,7 @@ fn nekojni_parse_binary(path: PathBuf, so_data: &[u8]) -> Result<ParsedBinary> {
             );
             let arch = match pe.header.coff_header.machine {
                 COFF_MACHINE_X86 => EntryPointArch::X86,
-                COFF_MACHINE_X86_64 => EntryPointArch::Amd64,
+                COFF_MACHINE_X86_64 => EntryPointArch::X86_64,
                 COFF_MACHINE_ARM64 => EntryPointArch::AArch64,
                 _ => jni_bail!("PE binary has unsupported machine architecture."),
             };
@@ -142,7 +142,7 @@ fn nekojni_parse_binary(path: PathBuf, so_data: &[u8]) -> Result<ParsedBinary> {
                 );
                 let arch = match mach.header.cputype {
                     CPU_TYPE_X86 => EntryPointArch::X86,
-                    CPU_TYPE_X86_64 => EntryPointArch::Amd64,
+                    CPU_TYPE_X86_64 => EntryPointArch::X86_64,
                     CPU_TYPE_ARM64 => EntryPointArch::AArch64,
                     _ => jni_bail!("Mach-O binary has unsupported machine architecture."),
                 };

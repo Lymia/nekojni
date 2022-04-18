@@ -20,6 +20,8 @@ fn main() {
         vec.push(binary);
     }
 
-    let class_data = build_jar::make_jar_data(&vec, &BuildJarOptions {}).unwrap();
+    let class_data =
+        build_jar::make_jar_data(&vec, &BuildJarOptions { main_bin: None, use_null_loader: false })
+            .unwrap();
     std::fs::write("test.jar", class_data.make_jar()).unwrap();
 }

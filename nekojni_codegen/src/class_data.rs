@@ -8,11 +8,16 @@ use zip::{write::FileOptions, ZipWriter};
 #[derive(Debug)]
 pub struct ClassData {
     class_info: HashMap<String, Vec<u8>>,
+    resources: HashMap<String, Vec<u8>>,
     loader_name: Option<String>,
 }
 impl ClassData {
     pub fn new() -> Self {
-        ClassData { class_info: Default::default(), loader_name: None }
+        ClassData {
+            class_info: Default::default(),
+            resources: Default::default(),
+            loader_name: None,
+        }
     }
 
     pub(crate) fn add_class(&mut self, name: &str, data: impl Into<Vec<u8>>) {
@@ -59,6 +64,10 @@ impl ClassData {
         exported.add_to_jar(self);
     }
 
+    pub fn add_resource(&mut self, name: &str, data: Vec<u8>) {
+        self.resources.insert(name.to_string(), data);
+    }
+
     pub fn make_jar(&self) -> Vec<u8> {
         let mut writer = ZipWriter::new(Cursor::new(Vec::<u8>::new()));
 
@@ -67,6 +76,10 @@ impl ClassData {
             writer
                 .start_file(&format!("{name}.class"), FileOptions::default())
                 .unwrap();
+            writer.write_all(data).unwrap();
+        }
+        for (name, data) in &self.resources {
+            writer.start_file(name, FileOptions::default()).unwrap();
             writer.write_all(data).unwrap();
         }
 

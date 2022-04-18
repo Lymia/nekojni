@@ -65,14 +65,16 @@ public final class NativeLibraryResourceLoader {
                  os == OS_LINUX ? "-unknown-linux-gnu" : null;
         return accum;
     }
-    private static String getLibraryName(int os, int arch, boolean isVersioned) {
+    private static String getLibraryName(int os, int arch, boolean isDisk) {
         String accum = "";
         if (os == OS_MACOS || os == OS_LINUX) accum += "lib";
         accum += LIBRARY_NAME;
-        if (isVersioned) accum += "-" + LIBRARY_VERSION;
-        accum += arch == ARCH_X86 ? ".x86" :
-                 arch == ARCH_AMD64 ? ".x86_64" :
-                 arch == ARCH_AARCH64 ? ".aarch64" : null;
+        if (isDisk) {
+            accum += "-" + LIBRARY_VERSION;
+            accum += arch == ARCH_X86 ? ".x86" :
+                     arch == ARCH_AMD64 ? ".x86_64" :
+                     arch == ARCH_AARCH64 ? ".aarch64" : null;
+        }
         accum += os == OS_WINDOWS ? ".dll" :
                  os == OS_MACOS ? ".dylib" :
                  os == OS_LINUX ? ".so" : null;
@@ -100,13 +102,13 @@ public final class NativeLibraryResourceLoader {
         int arch = getArchitecture();
 
         String target = getTargetName(os, arch);
-        String libraryNameUnversioned = getLibraryName(os, arch, false);
-        String libraryNameVersioned = getLibraryName(os, arch, true);
+        String libraryNameResource = getLibraryName(os, arch, false);
+        String libraryNameDisk = getLibraryName(os, arch, true);
 
         Path imageCachePath = getLibraryStore();
-        Path imageTargetPath = imageCachePath.resolve(libraryNameUnversioned);
+        Path imageTargetPath = imageCachePath.resolve(libraryNameResource);
         if (!Files.exists(imageTargetPath)) {
-            String resourceName = IMAGE_RESOURCE_PREFIX + "/" + target + "/" + libraryNameVersioned;
+            String resourceName = IMAGE_RESOURCE_PREFIX + "/" + target + "/" + libraryNameDisk;
             try (InputStream resourceData = NativeLibraryResourceLoader.class.getResourceAsStream(resourceName)) {
                 if (resourceData == null) {
                     throw new RuntimeException("Native binary for your platform was not found.");
