@@ -192,7 +192,20 @@ fn jni_process_impl(
     let native_methods = &components.native_methods;
 
     let create_ref = if is_import {
-        todo!()
+        quote! {
+            fn default_ptr() -> &'static Self {
+                &#impl_ty
+            }
+            fn create_jni_ref(
+                env: #nekojni::JniEnv<'env>,
+                obj: #jni::objects::JObject<'env>,
+                id: Option<u32>,
+            ) -> #nekojni::Result<#nekojni::JniRef<'env, Self>>
+                where Self: #nekojni::objects::JavaClass<'env>
+            {
+                #nekojni_internal::jni_ref::new_wrapped(env, obj)
+            }
+        }
     } else {
         quote! {
             fn default_ptr() -> &'static Self {
@@ -250,6 +263,35 @@ fn jni_process_impl(
             fn append_to_list(classes: &crate::__njni_module_info::GatherClasses) {}
         }
     };
+    let import_export_items = if !is_import {
+        quote! {
+            impl<'env> #nekojni_internal::RustContents<'env> for #impl_ty {
+                const ID_FIELD: &'static str = "njni$$i";
+            }
+            impl<'a> #nekojni_internal::Registration<#cl_id>
+                for crate::__njni_module_info::GatherClasses<'a>
+            {
+                #[inline(always)]
+                fn run_chain_fwd(&self) {
+                    use #nekojni_internal::{DerefRampChainA, DerefRampChainB};
+                    append_to_list(self);
+                    let helper = #nekojni_internal::DerefRamp::<{ #cl_id + 1 }, _>(self);
+                    (&helper).run_chain_fwd();
+                }
+                #[inline(always)]
+                fn run_chain_rev(&self) {
+                    use #nekojni_internal::{DerefRampChainA, DerefRampChainB};
+                    append_to_list(self);
+                    let helper = #nekojni_internal::DerefRamp::<{ #cl_id - 1 }, _>(self);
+                    (&helper).run_chain_rev();
+                }
+            }
+
+            #add_to_list_fn
+        }
+    } else {
+        quote! {}
+    };
 
     Ok(quote! {
         #impl_block
@@ -276,9 +318,6 @@ fn jni_process_impl(
                 type Cache = ExportedClassCache<'env>;
             }
             impl<'env> #nekojni::objects::JavaClass<'env> for #impl_ty { }
-            impl<'env> #nekojni_internal::RustContents<'env> for #impl_ty {
-                const ID_FIELD: &'static str = "njni$$i";
-            }
 
             // Module used to seperate out private `self.*` functions
             #[allow(unused)]
@@ -300,26 +339,7 @@ fn jni_process_impl(
                 }
             }
 
-            #add_to_list_fn
-
-            impl<'a> #nekojni_internal::Registration<#cl_id>
-                for crate::__njni_module_info::GatherClasses<'a>
-            {
-                #[inline(always)]
-                fn run_chain_fwd(&self) {
-                    use #nekojni_internal::{DerefRampChainA, DerefRampChainB};
-                    append_to_list(self);
-                    let helper = #nekojni_internal::DerefRamp::<{ #cl_id + 1 }, _>(self);
-                    (&helper).run_chain_fwd();
-                }
-                #[inline(always)]
-                fn run_chain_rev(&self) {
-                    use #nekojni_internal::{DerefRampChainA, DerefRampChainB};
-                    append_to_list(self);
-                    let helper = #nekojni_internal::DerefRamp::<{ #cl_id - 1 }, _>(self);
-                    (&helper).run_chain_rev();
-                }
-            }
+            #import_export_items
 
             ()
         };

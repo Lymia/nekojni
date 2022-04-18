@@ -116,6 +116,16 @@ pub fn make_jar_data(
                 }
             }
 
+            // generate a basic manifest
+            data.add_resource(
+                "META-INF/MANIFEST.MF",
+                format!("\
+                    Manifest-Version: 1.0\n\
+                    Created-By: 17.0.2 (GraalVM Community)\n\
+                ").into_bytes(),
+            );
+
+            // return the class data
             return Ok(data);
         }
     }

@@ -27,7 +27,7 @@ pub mod objects {
 }
 
 #[doc(inline)]
-pub use nekojni_macros::{jni, jni_export};
+pub use nekojni_macros::{jni, jni_export, jni_import};
 
 /// Generates types essential for the attributes of `nekojni` to work as intended.
 ///

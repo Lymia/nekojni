@@ -18,6 +18,8 @@ use syn::{
 pub(crate) struct FunctionAttrs {
     #[darling(default)]
     rename: Option<String>,
+    #[darling(default)]
+    constructor: bool,
 
     #[darling(default, rename = "__njni_direct_export")]
     direct_export: Option<String>,
@@ -264,7 +266,7 @@ fn method_wrapper_java(
             quote_spanned!(sig_span => /* nothing */),
         ),
         FuncSelfMode::Static => (
-            quote_spanned!(sig_span => env: impl #std::convert::AsRef<#nekojni::JniEnv<'env>>),
+            quote_spanned!(sig_span => env: impl #std::borrow::Borrow<#nekojni::JniEnv<'env>>),
             quote_spanned!(sig_span => env),
             quote_spanned!(sig_span => <'env>),
         ),
@@ -325,54 +327,68 @@ fn method_wrapper_java(
     }
 
     let rust_class_name = item.sig.ident.to_string();
-    let call_method = match self_mode {
-        FuncSelfMode::EnvRef(_) => quote_spanned! { item_span =>
-            let this = #nekojni::JniRef::this(self);
-            let ret_val = env.call_method(
-                this, #java_name, SIGNATURE, &[#(#param_names_java,)*],
-            );
-        },
+    let (wrap_params, wrap_call, call_method) = match self_mode {
+        FuncSelfMode::EnvRef(_) => (
+            quote_spanned! { item_span => this: #jni::sys::jobject, },
+            quote_spanned! { item_span => #nekojni::JniRef::this(self).into_inner(), },
+            quote_spanned! { item_span =>
+                let ret_val = env.call_method(
+                    this, #java_name, SIGNATURE, &[#(#param_names_java,)*],
+                );
+            },
+        ),
         FuncSelfMode::Static => {
             let class_name = &components.class_name;
-            quote_spanned! { item_span =>
-                let ret_val = env.call_static_method(
-                    #class_name, #java_name, SIGNATURE, &[#(#param_names_java,)*],
-                );
-            }
+            (
+                quote_spanned! { item_span => },
+                quote_spanned! { item_span => },
+                quote_spanned! { item_span =>
+                    let ret_val = env.call_static_method(
+                        #class_name, #java_name, SIGNATURE, &[#(#param_names_java,)*],
+                    );
+                },
+            )
         }
         _ => unreachable!(),
     };
-    let mut body = quote_spanned! { item_span =>
-        const SIGNATURE: &'static str = #nekojni_internal::constcat!(
-            "(",
-            #(<#param_types as #nekojni::conversions::JavaConversionType>::JNI_TYPE,)*
-            ")",
-            <#ret_ty as #nekojni_internal::ImportReturnTy>::JNI_TYPE,
-        );
+
+    let wrapper_fn = components.gensym("wrapper_fn");
+    let body = quote_spanned! { item_span =>
+        fn #wrapper_fn(
+            env: #nekojni::JniEnv,
+            #wrap_params
+            #(#param_names: &#param_types,)*
+        ) -> #ret_ty {
+            const SIGNATURE: &'static str = #nekojni_internal::constcat!(
+                "(",
+                #(<#param_types as #nekojni::conversions::JavaConversionType>::JNI_TYPE,)*
+                ")",
+                <#ret_ty as #nekojni_internal::ImportReturnTy>::JNI_TYPE,
+            );
+
+            #param_conversion
+
+            #call_method
+
+            #nekojni_internal::ImportReturnTy::from_return_ty(
+                #rust_class_name, env, ret_val.map_err(|x| x.into()),
+            )
+        }
 
         let env = #env;
-        #param_conversion
-
-        #call_method
-
-        #nekojni_internal::ImportReturnTy::from_return_ty(
-            #rust_class_name, env, ret_val.map_err(|x| x.into()),
+        #wrapper_fn(
+            *#std::borrow::Borrow::borrow(&env),
+            #wrap_call
+            #(#std::borrow::Borrow::borrow(&#param_names),)*
         )
     };
-    if self_mode == FuncSelfMode::Static {
-        let wrapper_fn = components.gensym("wrapper_fn");
-        body = quote_spanned! { item_span =>
-            fn #wrapper_fn(env: #nekojni::JniEnv, #(#param_names: #param_types,)*) -> #ret_ty {
-                #body
-            }
-            let env = *env.as_ref();
-            #wrapper_fn(env, #(#param_names,)*)
-        };
-    }
 
     // Generate the function in the additional impl block
     let new_method = parse2::<ImplItemMethod>(quote_spanned! { item_span =>
-        fn func #lt(#self_param, #(#param_names: #param_types,)*) -> #ret_ty {
+        fn func #lt(
+            #self_param,
+            #(#param_names: impl #std::borrow::Borrow<#param_types>,)*
+        ) -> #ret_ty {
             #body
         }
     })?;

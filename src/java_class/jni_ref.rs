@@ -56,8 +56,8 @@ impl<'env, T: JavaClass<'env>, R: JniRefType> JniRef<'env, T, R> {
     }
 
     /// Returns the [`JniEnv`] associated with this pointer.
-    pub fn env(this: &Self) -> JniEnv<'env> {
-        this.env
+    pub fn env(&self) -> JniEnv<'env> {
+        self.env
     }
 }
 

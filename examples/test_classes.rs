@@ -9,7 +9,7 @@ pub struct TestClass {
 #[jni_export]
 #[jni(package = "moe.lymia.test", extends = "java.lang.Thread")]
 impl TestClass {
-    pub extern "Java" fn test_func(self: &JniRef<Self>, a: u32, b: u32, c: u32) -> u32 {}
+    pub extern "Java" fn test_func(self: &JniRef<Self>, a: u32, b: u32, c: u64) -> u32 {}
     pub extern "Java" fn test_func_2(self: &JniRef<Self>, a: u32) {}
     pub extern "Java" fn test_func_3(env: JniEnv, a: u32) {}
     pub extern "Java" fn test_func_4(self: &JniRef<Self>, a: u32, b: u32, c: u32) -> Result<u32> {}
@@ -36,9 +36,18 @@ impl TestClass {
         self.counter
     }
 
-    pub fn test_fn(self: &JniRef<Self>) -> u32 {
-        self.increment_bar()
+    pub fn test_fn(self: &JniRef<Self>) -> Result<u32> {
+        println!("{}", self.test_func(1, 4, 8));
+        println!("{}", System::get_property(self.env(), "java.home")?);
+        Ok(self.increment_bar())
     }
+}
+
+pub struct System;
+#[jni_import]
+#[jni(package = "java.lang")]
+impl System {
+    pub extern "Java" fn get_property(env: JniEnv, prop: &str) -> Result<String> {}
 }
 
 jni_module!(
