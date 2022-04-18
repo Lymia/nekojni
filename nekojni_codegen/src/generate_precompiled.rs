@@ -27,3 +27,28 @@ pub fn generate_shutdown_hook(class_name: &str) -> Vec<u8> {
     let data = include_bytes!("moe/lymia/nekojni/ShutdownHook.class");
     replace_str(data, b"moe/lymia/nekojni/ShutdownHook", class_name)
 }
+
+pub fn generate_null_loader(class_name: &str) -> Vec<u8> {
+    let data = include_bytes!("moe/lymia/nekojni/NativeLibraryNullLoader.class");
+    replace_str(data, b"moe/lymia/nekojni/NativeLibraryNullLoader", class_name)
+}
+pub fn generate_resource_loader(
+    class_name: &str,
+    crate_name: &str,
+    crate_version: &str,
+    image_resource_path: &str,
+) -> Vec<u8> {
+    let data = include_bytes!("moe/lymia/nekojni/NativeLibraryResourceLoader.class");
+    let data = replace_str(data, b"moe/lymia/nekojni/NativeLibraryResourceLoader", class_name);
+    let data = replace_str(&data, b"[LIBRARY_NAME]", crate_name);
+    let data = replace_str(&data, b"[LIBRARY_VERSION]", crate_version);
+    let data = replace_str(&data, b"[IMAGE_RESOURCE_PREFIX]", image_resource_path);
+    data
+}
+
+pub fn generate_module_init_wrapper(class_name: &str, loader_name: &str) -> Vec<u8> {
+    let data = include_bytes!("moe/lymia/nekojni/ModuleInitWrapper.class");
+    let data = replace_str(data, b"moe/lymia/nekojni/ModuleInitWrapper", class_name);
+    let data = replace_str(&data, b"moe/lymia/nekojni/NativeLibraryNullLoader", loader_name);
+    data
+}

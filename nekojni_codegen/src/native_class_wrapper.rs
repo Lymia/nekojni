@@ -1,55 +1,75 @@
-use crate::utils::{push_param, return_param, OBJECT_CL};
+use crate::{
+    classfile::{CFlags, ClassWriter, FFlags, MFlags, MethodWriter},
+    signatures::{BasicType, ClassName, MethodSig, Type},
+    utils::{push_param, return_param},
+    ClassData,
+};
 use enumset::EnumSet;
-use nekojni_classfile::{CFlags, ClassWriter, FFlags, MFlags, MethodWriter};
-use nekojni_signatures::{BasicType, ClassName, MethodSig, ReturnType, Type};
 use std::collections::HashMap;
 
-pub struct ClassExporter<'a> {
-    name: &'a ClassName<'a>,
+pub struct NativeClassWrapper {
+    name: String,
     class: ClassWriter,
-    extends: &'a ClassName<'a>,
-    id_param: &'a str,
+    extends: String,
+    id_param: String,
     supporting: HashMap<String, Vec<u8>>,
 }
-impl<'a> ClassExporter<'a> {
-    pub fn new(
-        access: EnumSet<CFlags>,
-        extends: &'a ClassName<'a>,
-        name: &'a ClassName<'a>,
-        id_param: &'a str,
-    ) -> Self {
+impl NativeClassWrapper {
+    pub fn new(access: EnumSet<CFlags>, name: &str, extends: &str, id_param: &str) -> Self {
         let mut class = ClassWriter::new(access, name);
 
         class.extends(extends);
-        class.field(FFlags::Private | FFlags::Synthetic | FFlags::Final, id_param, &Type::Int);
+        class.field(FFlags::Private | FFlags::Synthetic | FFlags::Final, id_param, "I");
 
-        ClassExporter { name, class, extends, id_param, supporting: HashMap::new() }
+        NativeClassWrapper {
+            name: name.to_string(),
+            class,
+            extends: name.to_string(),
+            id_param: name.to_string(),
+            supporting: HashMap::new(),
+        }
+    }
+    pub fn implements(&mut self, implement: &str) {
+        self.class.implements(implement);
+    }
+
+    pub fn generate_init(&mut self, init_class: &str) {
+        let method = self.class.method(MFlags::Static.into(), "<clinit>", "()V");
+        let mut code = method.code();
+        code.invokestatic(init_class, "init", "()V").vreturn();
     }
 
     pub fn export_constructor(
         &mut self,
         access: EnumSet<MFlags>,
-        sig: &MethodSig,
+        sig_str: &str,
         native_name: &str,
-        native_sig: &MethodSig,
-        super_sig: &MethodSig,
+        native_sig_str: &str,
+        super_sig_str: &str,
         late_init: &[&'static str],
     ) {
+        // parse the signatures passed in
+        let sig = MethodSig::parse_jni(sig_str).unwrap();
+        let native_sig = MethodSig::parse_jni(native_sig_str).unwrap();
+        let super_sig = MethodSig::parse_jni(super_sig_str).unwrap();
+
+        // parse out the intermediate type.
         let intermediate_name = match &native_sig.ret_ty {
-            ReturnType::Ty(Type { basic_sig: BasicType::Int, .. }) => None,
-            ReturnType::Ty(Type { basic_sig: BasicType::Class(name), .. }) => {
-                assert_eq!(self.name.package, name.package);
-                Some(name)
+            Type { basic_sig: BasicType::Int, .. } => None,
+            Type { basic_sig: BasicType::Class(name), .. } => {
+                let name_parsed = ClassName::parse_jni(&self.name).unwrap();
+                assert_eq!(name_parsed.package, name.package);
+                Some(name.display_jni().to_string())
             }
             _ => panic!("illegal ret_ty for native_sig"),
         };
 
         // check parameter consistancy
-        assert_eq!(sig.ret_ty, ReturnType::Void);
-        assert_eq!(super_sig.ret_ty, ReturnType::Void);
+        assert_eq!(sig.ret_ty, Type::Void);
+        assert_eq!(super_sig.ret_ty, Type::Void);
         assert_eq!(sig.params, native_sig.params);
 
-        let method = self.class.method(access, "<init>", sig);
+        let method = self.class.method(access, "<init>", sig_str);
         let mut code = method.code();
 
         // call the actual native initialization function
@@ -58,22 +78,22 @@ impl<'a> ClassExporter<'a> {
             param_id += push_param(&mut code, param_id, param);
         }
         let var_native_ret = param_id;
-        code.invokestatic(&self.name, native_name, native_sig);
+        code.invokestatic(&self.name, native_name, native_sig_str);
 
         // write the actual Java-side initialization
         match intermediate_name {
             None => {
                 // just call the superclass' default constructor
                 code.aload(0)
-                    .invokestatic(self.extends, "<init>", &MethodSig::void(&[]))
-                    .putfield(&self.name, self.id_param, &Type::Int)
+                    .invokestatic(&self.extends, "<init>", "()V")
+                    .putfield(&self.name, &self.id_param, "I")
                     .vreturn();
             }
             Some(support_name) => {
                 // generate a supporting class
                 {
                     let mut supporting =
-                        ClassWriter::new(CFlags::Final | CFlags::Synthetic, support_name);
+                        ClassWriter::new(CFlags::Final | CFlags::Synthetic, &support_name);
 
                     // creating a constructor
                     {
@@ -84,26 +104,24 @@ impl<'a> ClassExporter<'a> {
                             vec.push(param.clone());
                         }
 
-                        let mut method = supporting.method(
-                            MFlags::Synthetic.into(),
-                            "<init>",
-                            &MethodSig::void(&vec),
-                        );
+                        let mut method =
+                            supporting.method(MFlags::Synthetic.into(), "<init>", "()V");
                         let mut code = method.code();
 
                         // write the id field
                         code.aload(0)
-                            .invokestatic(&OBJECT_CL, "<init>", &MethodSig::void(&[]))
+                            .invokestatic("java/lang/Object", "<init>", "()V")
                             .iload(1)
-                            .putfield(support_name, "id", &Type::Int);
+                            .putfield(&support_name, "id", "I");
 
                         // write the rest of the parameters
                         let mut id = 0;
                         let mut param_id = 2;
                         for param in sig.params.as_slice() {
                             let field_name = format!("param_{}", param_id);
+                            let param_ty = param.display_jni().to_string();
                             param_id += push_param(&mut code, param_id, param);
-                            code.putfield(support_name, &field_name, param);
+                            code.putfield(&support_name, &field_name, &param_ty);
                             id += 1;
                         }
 
@@ -111,19 +129,20 @@ impl<'a> ClassExporter<'a> {
                     }
 
                     // write the id field
-                    supporting.field(FFlags::Final | FFlags::Synthetic, "id", &Type::Int);
+                    supporting.field(FFlags::Final | FFlags::Synthetic, "id", "I");
 
                     // write the rest of the parameters in the supporting class
                     let mut id = 0;
                     for param in sig.params.as_slice() {
                         let field_name = format!("param_{}", param_id);
-                        supporting.field(FFlags::Final | FFlags::Synthetic, &field_name, param);
+                        let param_ty = param.display_jni().to_string();
+                        supporting.field(FFlags::Final | FFlags::Synthetic, &field_name, &param_ty);
                         id += 1;
                     }
 
                     // write the class data
                     self.supporting
-                        .insert(support_name.display_jni().to_string(), supporting.into_vec());
+                        .insert(support_name.clone(), supporting.into_vec());
                 }
 
                 // load the parameters from the support class and call the super constructor
@@ -131,33 +150,33 @@ impl<'a> ClassExporter<'a> {
                 let mut id = 0;
                 for param in native_sig.params.as_slice() {
                     let field_name = format!("param_{}", param_id);
+                    let param_ty = param.display_jni().to_string();
                     code.aload(var_native_ret)
-                        .getfield(support_name, &field_name, param);
+                        .getfield(&support_name, &field_name, &param_ty);
                     id += 1;
                 }
-                code.invokespecial(&self.extends, "<init>", &native_sig)
+                code.invokespecial(&self.extends, "<init>", native_sig_str)
                     .aload(0)
                     .aload(var_native_ret)
-                    .getfield(support_name, "id", &Type::Int)
-                    .putfield(&self.name, "id", &Type::Int);
+                    .getfield(&support_name, "id", "I")
+                    .putfield(&self.name, "id", "I");
             }
         }
 
         // call all late init functions
         for func in late_init {
-            code.aload(0)
-                .invokevirtual(&self.name, func, &MethodSig::void(&[]));
+            code.aload(0).invokevirtual(&self.name, func, "()V");
         }
 
         // cleanup
         code.vreturn();
     }
 
-    pub fn export_field(&mut self, access: EnumSet<FFlags>, name: &str, ty: &Type) {
+    pub fn export_field(&mut self, access: EnumSet<FFlags>, name: &str, ty: &str) {
         self.class.field(access, name, ty);
     }
 
-    pub fn export_native(&mut self, name: &str, sig: &MethodSig, is_static: bool) {
+    pub fn export_native(&mut self, name: &str, sig: &str, is_static: bool) {
         let mut access = MFlags::Private | MFlags::Synthetic | MFlags::Native;
         if is_static {
             access |= MFlags::Static;
@@ -169,12 +188,17 @@ impl<'a> ClassExporter<'a> {
         &mut self,
         access: EnumSet<MFlags>,
         name: &str,
-        sig: &MethodSig,
+        sig_str: &str,
         native_name: &str,
-        native_sig: &MethodSig,
+        native_sig_str: &str,
         has_id_param: bool,
     ) {
-        let mut method = self.class.method(access, name, sig);
+        // parse the signatures passed in
+        let sig = MethodSig::parse_jni(sig_str).unwrap();
+        let native_sig = MethodSig::parse_jni(native_sig_str).unwrap();
+
+        // begin generating the method
+        let mut method = self.class.method(access, name, sig_str);
         let mut code = method.code();
 
         // retrieve parameters
@@ -199,23 +223,23 @@ impl<'a> ClassExporter<'a> {
             0
         };
         if has_id_param {
-            code.getfield(&self.name, self.id_param, &Type::Int);
+            code.getfield(&self.name, &self.id_param, "I");
         }
         for param in native_sig_params {
             param_id += push_param(&mut code, param_id, &param);
         }
         if access.contains(MFlags::Static) {
-            code.invokestatic(&self.name, native_name, native_sig);
+            code.invokestatic(&self.name, native_name, native_sig_str);
         } else {
-            code.invokevirtual(&self.name, native_name, native_sig);
+            code.invokevirtual(&self.name, native_name, native_sig_str);
         }
         return_param(&mut code, &sig.ret_ty);
     }
 
-    pub fn into_vec(self) -> Vec<(String, Vec<u8>)> {
-        let mut data = Vec::new();
-        data.push((self.name.display_jni().to_string(), self.class.into_vec()));
-        data.extend(self.supporting);
-        data
+    pub(crate) fn add_to_jar(self, data: &mut ClassData) {
+        data.add_class(&self.name, self.class.into_vec());
+        for (name, class_data) in self.supporting {
+            data.add_class(&name, class_data);
+        }
     }
 }

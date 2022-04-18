@@ -1,6 +1,8 @@
 package moe.lymia.nekojni;
 
-public final class LoadBinaryExternally extends Thread {
+public final class ModuleInitWrapper {
+    private ModuleInitWrapper() {}
+
     private static volatile boolean IS_INIT_COMPLETED;
     private static volatile boolean IS_POISONED;
 
@@ -10,6 +12,7 @@ public final class LoadBinaryExternally extends Thread {
         if (IS_POISONED) throw new RuntimeException("Native library already failed to load, refusing to try again.");
 
         try {
+            NativeLibraryNullLoader.init();
             initialize();
             IS_INIT_COMPLETED = true;
         } catch (Exception e) {

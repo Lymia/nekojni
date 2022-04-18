@@ -41,10 +41,8 @@ impl TestClass {
     }
 }
 
-jni_module!(JniModule, "moe.lymia.JniModule");
-
-fn main() {
-    use nekojni::__macro_internals::JavaModuleImpl;
-    let classes = JniModule.get_info();
-    println!("{classes:#?}");
-}
+jni_module!(
+    JniModule,
+    "moe.lymia.nekojni.test.JniInit",
+    "moe.lymia.nekojni.test.JniException"
+);

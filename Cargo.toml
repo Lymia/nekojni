@@ -9,7 +9,7 @@ default = ["codegen"]
 codegen = []
 
 [[example]]
-name = "test_classes_2"
+name = "test_classes"
 crate-type = ["cdylib"]
 
 [dependencies]
@@ -24,6 +24,9 @@ thiserror = "1.0.30"
 
 nekojni_codegen = { version = "0.1.0", path = "nekojni_codegen" }
 nekojni_macros = { version = "0.1.0", path = "nekojni_macros" }
+
+[build-dependencies]
+rustc_version = "0.4.0"
 
 [workspace]
 members = ["nekojni_cli", "nekojni_codegen", "nekojni_macros"]

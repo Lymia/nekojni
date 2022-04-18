@@ -34,20 +34,27 @@ pub use nekojni_macros::{jni, jni_export};
 /// This should be used in the root of your crate, and will result in an error if it is used
 /// anywhere else.
 ///
-/// The first parameter is the name of the module type, and the second parameter is the name
-/// of the class it exports into Java. This class will mostly be used to contain an initialization
-/// function that will be called from the Java-side of other types exported by this module.
+/// The first parameter is the name of the module type. This is only accessible from Rust, and may
+/// be used to load this module using the Invocation API.
+///
+/// The second parameter is the name of the class it exports into Java. This class will mostly be
+/// used to contain an initialization function that will be called from the Java-side of other
+/// types exported by this module. It is not meant to be used publicly, but is needed for Java to
+/// properly link the initialization function.
+///
+/// The third parameter is the name of the exception class it exports into Java. This class is
+/// exported as a `RuntimeException` that Rust panics or errors will be wrapped in.
 ///
 /// ## Examples
 ///
 /// ```rust
 /// use nekojni::jni_module;
-/// jni_module!(pub FooModule, "moe.lymia.FooInit");
+/// jni_module!(pub FooModule, "moe.lymia.foo.FooInit", "moe.lymia.foo.FooException");
 /// ```
 #[macro_export]
 macro_rules! jni_module {
     (
-        $module_vis:vis $module_name:ident, $init_class_name:expr $(,)?
+        $module_vis:vis $module_name:ident, $init_class_name:expr, $except_class_name:expr $(,)?
     ) => {
         /// The JNI module exported by this crate.
         $module_vis struct $module_name;
@@ -86,9 +93,12 @@ macro_rules! jni_module {
                 pub fn initialize(env: $crate::JniEnv) -> Result<()> {
                     let info = crate::$module_name.get_info();
 
-                    for class in info {
+                    // load all native methods from all classes
+                    for class in info.class_info {
                         if let Some(exported) = &class.exported {
-                            exported.register_natives(env)?;
+                            unsafe {
+                                exported.register_natives(env)?;
+                            }
                         }
                     }
 
@@ -98,10 +108,8 @@ macro_rules! jni_module {
                 /// A method exported from the .so/.dylib/.dll to allow the cli tool to pull
                 /// information from the binary.
                 #[jni(__njni_export_module_info = $init_class_name)]
-                pub extern "C" fn __njni_module_info()
-                    -> (&'static str, &'static [&'static JavaClassInfo])
-                {
-                    (MARKER_STR, crate::$module_name.get_info())
+                pub extern "C" fn __njni_module_info() -> &'static JavaModuleInfo {
+                    crate::$module_name.get_info()
                 }
             }
 
@@ -113,9 +121,22 @@ macro_rules! jni_module {
             impl $crate::objects::JavaModule for crate::$module_name { }
             impl JavaModuleImpl for crate::$module_name {
                 #[inline(never)]
-                fn get_info(&self) -> &'static [&'static JavaClassInfo] {
-                    static CACHE: OnceCache<Vec<&'static JavaClassInfo>> = OnceCache::new();
-                    &CACHE.init(get_info_raw)
+                fn get_info(&self) -> &'static JavaModuleInfo {
+                    static CACHE: OnceCache<JavaModuleInfo> = OnceCache::new();
+                    CACHE.init(|| {
+                        static CACHE: OnceCache<Vec<&JavaClassInfo>> = OnceCache::new();
+                        let classes = &CACHE.init(get_info_raw);
+                        JavaModuleInfo {
+                            major_version: MAJOR_VERSION,
+                            marker_len: MARKER_STR.len(),
+                            marker_ptr: MARKER_STR.as_ptr(),
+                            crate_name: env!("CARGO_PKG_NAME"),
+                            crate_version: env!("CARGO_PKG_VERSION"),
+                            init_class_name: java_name_to_jni!($init_class_name),
+                            except_class_name: java_name_to_jni!($except_class_name),
+                            class_info: classes,
+                        }
+                    })
                 }
             }
 

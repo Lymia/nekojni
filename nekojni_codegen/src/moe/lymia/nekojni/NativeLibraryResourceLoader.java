@@ -7,7 +7,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-public final class LoadBinaryFromResource extends Thread {
+public final class NativeLibraryResourceLoader {
+    private NativeLibraryResourceLoader() {}
+
     private static volatile boolean IS_INIT_COMPLETED;
     private static volatile boolean IS_POISONED;
 
@@ -105,7 +107,7 @@ public final class LoadBinaryFromResource extends Thread {
         Path imageTargetPath = imageCachePath.resolve(libraryNameUnversioned);
         if (!Files.exists(imageTargetPath)) {
             String resourceName = IMAGE_RESOURCE_PREFIX + "/" + target + "/" + libraryNameVersioned;
-            try (InputStream resourceData = LoadBinaryFromResource.class.getResourceAsStream(resourceName)) {
+            try (InputStream resourceData = NativeLibraryResourceLoader.class.getResourceAsStream(resourceName)) {
                 if (resourceData == null) {
                     throw new RuntimeException("Native binary for your platform was not found.");
                 }
@@ -118,14 +120,11 @@ public final class LoadBinaryFromResource extends Thread {
         // TODO: Code for cleaning up old binaries, don't just dump them to disk.
     }
 
-    private static native void initialize();
-
     private static synchronized void checkInit() {
         if (IS_POISONED) throw new RuntimeException("Native library already failed to load, refusing to try again.");
 
         try {
             loadNativeLibrary();
-            initialize();
             IS_INIT_COMPLETED = true;
         } catch (Exception e) {
             IS_POISONED = true;

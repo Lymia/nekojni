@@ -1,7 +1,7 @@
 use crate::{errors::*, JniEnv};
 use enumset::EnumSet;
 use jni::{strings::JNIString, NativeMethod};
-use nekojni_codegen::{CFlags, FFlags, MFlags};
+use nekojni_codegen::{CFlags, ClassData, FFlags, MFlags, NativeClassWrapper};
 use std::ffi::c_void;
 
 /// Represents something exported from a Java class defined in Rust.
@@ -66,7 +66,7 @@ pub struct ExportedClass {
     pub native_methods: &'static [RustNativeMethod],
 }
 impl ExportedClass {
-    pub fn register_natives(&self, env: JniEnv) -> Result<()> {
+    pub unsafe fn register_natives(&self, env: JniEnv) -> Result<()> {
         let mut methods = Vec::new();
         for method in self.native_methods {
             methods.push(NativeMethod {
@@ -79,21 +79,20 @@ impl ExportedClass {
         Ok(())
     }
 
-    /*
-    pub fn generate_class(&self) -> Vec<(String, Vec<u8>)> {
-        let mut class = ClassExporter::new(
+    pub fn generate_class(&self, class_data: &mut ClassData, init_class: &str) {
+        let mut class = NativeClassWrapper::new(
             self.access,
             &self.name,
             match &self.super_class {
-                None => {
-                    static OBJECT_CN: ClassName<'static> =
-                        ClassName::new(&["java", "lang"], "String");
-                    &OBJECT_CN
-                }
+                None => "java/lang/Object",
                 Some(v) => v,
             },
             self.id_field_name,
         );
+        class.generate_init(init_class);
+        for class_name in self.implements {
+            class.implements(class_name);
+        }
 
         for exports in self.exports {
             match exports {
@@ -118,26 +117,15 @@ impl ExportedClass {
                     name,
                     signature,
                     native_name,
+                    native_signature,
                     has_id_param,
                 } => {
-                    let mut params = Vec::new();
-                    if *has_id_param {
-                        params.push(Type::Int);
-                    }
-                    for param in signature.params.as_slice() {
-                        params.push(param.clone());
-                    }
-                    let native_sig = MethodSig {
-                        ret_ty: signature.ret_ty.clone(),
-                        params: StaticList::Borrowed(&params),
-                    };
-
                     class.export_native_wrapper(
                         *flags,
                         name,
-                        &signature,
+                        signature,
                         &jni_native_name(native_name, flags.contains(MFlags::Static)),
-                        &native_sig,
+                        native_signature,
                         *has_id_param,
                     );
                 }
@@ -150,7 +138,6 @@ impl ExportedClass {
             class.export_native(method.name, &method.sig, method.is_static);
         }
 
-        class.into_vec()
+        class_data.add_exported_class(class);
     }
-    */
 }
