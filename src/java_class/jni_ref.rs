@@ -47,7 +47,6 @@ pub struct JniRef<'env, T: JavaClass<'env>, R: JniRefType = JniRefRead> {
     inner: InnerRef<T>,
     env: JniEnv<'env>,
     phantom: PhantomData<R>,
-    pub(crate) cache: T::Cache,
 }
 impl<'env, T: JavaClass<'env>, R: JniRefType> JniRef<'env, T, R> {
     /// Returns the underlying [`JObject`] associated with this pointer.
@@ -78,7 +77,6 @@ impl<'env, T: JavaClass<'env>> JniRef<'env, T> {
             },
             env: self.env,
             phantom: PhantomData,
-            cache: self.cache,
         }
     }
 }
@@ -126,7 +124,7 @@ pub fn new_rust<'env, T: RustContents<'env>>(
     let manager = env.get_id_manager::<T>();
     let lock = manager.get(id)?;
     let inner = InnerRef::Read(lock.upgradable_read_arc());
-    Ok(JniRef { this, inner, env, phantom: PhantomData, cache: T::Cache::default() })
+    Ok(JniRef { this, inner, env, phantom: PhantomData })
 }
 
 /// Creates a new [`JniRef`] from a JNI environment and a java object.
@@ -139,7 +137,6 @@ pub fn new_wrapped<'env, T: JavaClass<'env>>(
         inner: InnerRef::Default,
         env,
         phantom: PhantomData,
-        cache: T::Cache::default(),
     })
 }
 

@@ -313,19 +313,6 @@ fn method_wrapper_java(
     };
 
     // Generate the body of the function
-    let cache_field_name = components.gensym("cached_method_id");
-    if self_mode == FuncSelfMode::Static {
-        components.generated_cache.extend(quote_spanned! { item_span =>
-            #cache_field_name: #nekojni_internal::OnceCache<#jni::objects::JStaticMethodID<'env>>,
-        });
-    } else {
-        components
-            .generated_cache
-            .extend(quote_spanned! { item_span =>
-                #cache_field_name: #nekojni_internal::OnceCache<#jni::objects::JMethodID<'env>>,
-            });
-    }
-
     let rust_class_name = item.sig.ident.to_string();
     let (wrap_params, wrap_call, call_method) = match self_mode {
         FuncSelfMode::EnvRef(_) => (

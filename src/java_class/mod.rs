@@ -25,8 +25,6 @@ pub trait JavaClassImpl<'env>: Sized + Send + Sync + 'static {
     ) -> Result<jni_ref::JniRef<'env, Self>>
     where
         Self: JavaClass<'env>;
-
-    type Cache: Default + 'env;
 }
 
 pub trait RustContents<'env>: JavaClass<'env> {

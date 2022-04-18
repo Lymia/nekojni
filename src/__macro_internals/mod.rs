@@ -33,17 +33,6 @@ use crate::{
 
 pub mod jni_ref {
     pub use crate::java_class::jni_ref::{new_rust, new_wrapped};
-
-    use crate::{
-        java_class::{jni_ref::JniRefType, JavaClass},
-        JniRef,
-    };
-
-    pub fn get_cache<'a, 'env, T: JavaClass<'env>, R: JniRefType>(
-        r: &'a JniRef<'env, T, R>,
-    ) -> &'a T::Cache {
-        &r.cache
-    }
 }
 
 /// An error function for [`JavaClassImpl::default_ptr`].
