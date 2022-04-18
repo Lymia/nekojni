@@ -1,4 +1,4 @@
-use crate::PoolWriter;
+use crate::classfile::PoolWriter;
 use byteorder::{WriteBytesExt, BE};
 use std::{
     fmt::Debug,
@@ -49,23 +49,6 @@ impl SourceFile {
 impl Attribute for SourceFile {
     fn name(&self) -> &str {
         "SourceFile"
-    }
-    fn write(&self, pool: &mut PoolWriter, out: &mut Cursor<Vec<u8>>) -> Result<(), Error> {
-        pool.utf8(&self.0).write(out)
-    }
-}
-
-/// Represents the `Signature` attribute of a Java class.
-#[derive(Debug)]
-pub struct Signature(String);
-impl Signature {
-    pub fn new(name: &str) -> Self {
-        Signature(name.to_string())
-    }
-}
-impl Attribute for Signature {
-    fn name(&self) -> &str {
-        "Signature"
     }
     fn write(&self, pool: &mut PoolWriter, out: &mut Cursor<Vec<u8>>) -> Result<(), Error> {
         pool.utf8(&self.0).write(out)

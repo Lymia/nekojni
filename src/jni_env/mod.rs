@@ -62,29 +62,12 @@ fn jni_new_ref(env: JNIEnv) -> Result<Arc<JniEnvCacheData>> {
         write.is_initialized = true;
 
         // create the new class we used to register the shutdown hook
-        //
-        // While we have the infrastructure to generate classes directly, we do not use it to
-        // avoid having that code present in the generated .so/.dylibs/etc unnecessarily. We simply
-        // rename the class using a relatively brute force method.
         let cache_offset = format!("{:016x}", &CACHES as *const _ as usize as u64);
-        let orig_name = "moe/lymia/nekojni/ShutdownHook_0000000000000000";
         let new_name = format!("moe/lymia/nekojni/ShutdownHook_{cache_offset}");
-        assert_eq!(orig_name.len(), new_name.len());
-
-        let class_data = include_bytes!("../moe/lymia/nekojni/ShutdownHook_0000000000000000.class");
-        let mut class_data = class_data.to_vec();
-        let mut replaced = false;
-        for i in 0..class_data.len() - orig_name.len() {
-            let mut needle = &mut class_data[i..i + orig_name.len()];
-            if needle == orig_name.as_bytes() {
-                needle.copy_from_slice(new_name.as_bytes());
-                replaced = true;
-            }
-        }
-        assert!(replaced);
+        let class_data = nekojni_codegen::generate_shutdown_hook(&new_name);
 
         // register the native method handler
-        env.register_native_methods("moe/lymia/nekojni/ShutdownHook", &[NativeMethod {
+        env.register_native_methods(&new_name, &[NativeMethod {
             name: JNIString::from("native_shutdown"),
             sig: JNIString::from("()V"),
             fn_ptr: jni_shutdown as *mut _,

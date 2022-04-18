@@ -1,4 +1,4 @@
-use nekojni_signatures::*;
+use nekojni_codegen::signatures::*;
 
 fn make_test_types() -> Vec<(Type, &'static str, &'static str)> {
     vec![
@@ -18,7 +18,9 @@ fn make_test_types() -> Vec<(Type, &'static str, &'static str)> {
             "Ljava/lang/String;",
         ),
         (
-            Type::class(&["java".into(), "lang".into()], "String").array().array(),
+            Type::class(&["java".into(), "lang".into()], "String")
+                .array()
+                .array(),
             "java.lang.String[][]",
             "[[Ljava/lang/String;",
         ),

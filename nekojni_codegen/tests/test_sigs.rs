@@ -1,4 +1,4 @@
-use nekojni_signatures::*;
+use nekojni_codegen::signatures::*;
 
 fn make_test_sigs() -> Vec<(MethodSig, &'static str, &'static str)> {
     vec![

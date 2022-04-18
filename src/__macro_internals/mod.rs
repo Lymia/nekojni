@@ -12,7 +12,7 @@ pub use crate::{
 };
 pub use constcat::constcat;
 pub use extract_self_param::*;
-pub use nekojni_classfile::{CFlags, FFlags, MFlags};
+pub use nekojni_codegen::{CFlags, FFlags, MFlags};
 pub use nekojni_macros::jni_export_internal;
 pub use once::OnceCache;
 pub use registration::*;

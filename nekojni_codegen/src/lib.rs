@@ -2,9 +2,9 @@
 
 extern crate core;
 
-mod exported_class;
-mod native_init;
-mod utils;
+mod classfile;
+mod generate_precompiled;
+pub mod signatures;
 
-pub use exported_class::*;
-pub use native_init::*;
+pub use classfile::{CFlags, FFlags, MFlags};
+pub use generate_precompiled::*;

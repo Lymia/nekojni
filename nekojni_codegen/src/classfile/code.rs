@@ -1,6 +1,8 @@
-use crate::{attributes::Attribute, PoolId, PoolWriter};
+use crate::{
+    classfile::{attributes::Attribute, PoolId, PoolWriter},
+    signatures::{MethodSig, Type},
+};
 use byteorder::{WriteBytesExt, BE};
-use nekojni_signatures::{ClassName, MethodSig, ReturnType, Type};
 use std::{
     collections::HashMap,
     io::{Cursor, Error, Write},
@@ -115,47 +117,47 @@ impl MethodWriter {
         self
     }
 
-    pub fn invokeinterface(&mut self, class: &ClassName, name: &str, sig: &MethodSig) -> &mut Self {
+    pub fn invokeinterface(&mut self, class: &str, name: &str, sig: &str) -> &mut Self {
         self.push_instr(Instruction::invokeinterface(InvokeData::new(class, name, sig)))
     }
-    pub fn invokespecial(&mut self, class: &ClassName, name: &str, sig: &MethodSig) -> &mut Self {
+    pub fn invokespecial(&mut self, class: &str, name: &str, sig: &str) -> &mut Self {
         self.push_instr(Instruction::invokespecial(InvokeData::new(class, name, sig)))
     }
-    pub fn invokestatic(&mut self, class: &ClassName, name: &str, sig: &MethodSig) -> &mut Self {
+    pub fn invokestatic(&mut self, class: &str, name: &str, sig: &str) -> &mut Self {
         self.push_instr(Instruction::invokestatic(InvokeData::new(class, name, sig)))
     }
-    pub fn invokevirtual(&mut self, class: &ClassName, name: &str, sig: &MethodSig) -> &mut Self {
+    pub fn invokevirtual(&mut self, class: &str, name: &str, sig: &str) -> &mut Self {
         self.push_instr(Instruction::invokevirtual(InvokeData::new(class, name, sig)))
     }
 
-    pub fn new(&mut self, ty: &ClassName) -> &mut Self {
-        self.push_instr(Instruction::new(ty.display_jni().to_string()))
+    pub fn new(&mut self, ty: &str) -> &mut Self {
+        self.push_instr(Instruction::new(ty.to_string()))
     }
-    pub fn anewarray(&mut self, ty: &ClassName) -> &mut Self {
-        self.push_instr(Instruction::anewarray(ty.display_jni().to_string()))
+    pub fn anewarray(&mut self, ty: &str) -> &mut Self {
+        self.push_instr(Instruction::anewarray(ty.to_string()))
     }
-    pub fn checkcast(&mut self, ty: &ClassName) -> &mut Self {
-        self.push_instr(Instruction::checkcast(ty.display_jni().to_string()))
+    pub fn checkcast(&mut self, ty: &str) -> &mut Self {
+        self.push_instr(Instruction::checkcast(ty.to_string()))
     }
 
-    pub fn getfield(&mut self, class: &ClassName, name: &str, ty: &Type) -> &mut Self {
+    pub fn getfield(&mut self, class: &str, name: &str, ty: &str) -> &mut Self {
         self.push_instr(Instruction::getfield(FieldData::new(class, name, ty)))
     }
-    pub fn getstatic(&mut self, class: &ClassName, name: &str, ty: &Type) -> &mut Self {
+    pub fn getstatic(&mut self, class: &str, name: &str, ty: &str) -> &mut Self {
         self.push_instr(Instruction::getstatic(FieldData::new(class, name, ty)))
     }
-    pub fn putfield(&mut self, class: &ClassName, name: &str, ty: &Type) -> &mut Self {
+    pub fn putfield(&mut self, class: &str, name: &str, ty: &str) -> &mut Self {
         self.push_instr(Instruction::putfield(FieldData::new(class, name, ty)))
     }
-    pub fn putstatic(&mut self, class: &ClassName, name: &str, ty: &Type) -> &mut Self {
+    pub fn putstatic(&mut self, class: &str, name: &str, ty: &str) -> &mut Self {
         self.push_instr(Instruction::putstatic(FieldData::new(class, name, ty)))
     }
 
     pub fn aconst_str(&mut self, str: &str) -> &mut Self {
         self.push_instr(Instruction::aconst_str(str.to_string()))
     }
-    pub fn aconst_class(&mut self, class: &ClassName) -> &mut Self {
-        self.push_instr(Instruction::aconst_class(class.display_jni().to_string()))
+    pub fn aconst_class(&mut self, class: &str) -> &mut Self {
+        self.push_instr(Instruction::aconst_class(class.to_string()))
     }
     pub fn fconst(&mut self, v: f32) -> &mut Self {
         if v == 0.0 {
@@ -206,12 +208,17 @@ struct FieldData {
     slots: usize,
 }
 impl FieldData {
-    fn new(class: &ClassName, name: &str, ty: &Type) -> Self {
+    fn new(class: &str, name: &str, ty: &str) -> Self {
+        let parsed_ty = Type::parse_jni(ty).unwrap();
         FieldData {
-            class: class.display_jni().to_string(),
+            class: class.to_string(),
             name: name.to_string(),
-            desc: ty.display_jni().to_string(),
-            slots: if ty == &Type::Double || ty == &Type::Long { 2 } else { 1 },
+            desc: ty.to_string(),
+            slots: if parsed_ty == Type::Double || parsed_ty == Type::Long {
+                2
+            } else {
+                1
+            },
         }
     }
     fn make_ref(&self, pool: &mut PoolWriter) -> PoolId {
@@ -228,13 +235,14 @@ struct InvokeData {
     retc: usize,
 }
 impl InvokeData {
-    fn new(class: &ClassName, name: &str, sig: &MethodSig) -> Self {
+    fn new(class: &str, name: &str, sig: &str) -> Self {
+        let parsed_sig = MethodSig::parse_jni(sig).unwrap();
         InvokeData {
-            class: class.display_jni().to_string(),
+            class: class.to_string(),
             name: name.to_string(),
-            desc: sig.display_jni().to_string(),
-            argc: sig.params.len(),
-            retc: if sig.ret_ty == ReturnType::Void { 0 } else { 1 },
+            desc: sig.to_string(),
+            argc: parsed_sig.params.len(),
+            retc: if parsed_sig.ret_ty == Type::Void { 0 } else { 1 },
         }
     }
     fn make_method_ref(&self, pool: &mut PoolWriter) -> PoolId {

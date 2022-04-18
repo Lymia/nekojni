@@ -1,5 +1,3 @@
-#![deny(unused_must_use)]
-
 mod attributes;
 mod code;
 mod constant_pool;
@@ -9,12 +7,14 @@ pub use code::{LabelId, MethodWriter};
 pub use flags::*;
 
 use crate::{
-    attributes::{AttributeTable, Signature, SourceFile},
-    constant_pool::{PoolId, PoolWriter},
+    classfile::{
+        attributes::{AttributeTable, SourceFile},
+        constant_pool::{PoolId, PoolWriter},
+    },
+    signatures::MethodSig,
 };
 use byteorder::{WriteBytesExt, BE};
 use enumset::EnumSet;
-use nekojni_signatures::{ClassName, Type};
 use std::{
     io::{Cursor, Error, Write},
     ops::{Deref, DerefMut},
@@ -87,7 +87,7 @@ pub struct ClassWriter {
     source_file_written: bool,
 }
 impl ClassWriter {
-    pub fn new(access_flags: EnumSet<CFlags>, name: &ClassName) -> Self {
+    pub fn new(access_flags: EnumSet<CFlags>, name: &str) -> Self {
         let mut pool = PoolWriter::default();
         let name = pool.class(name);
         ClassWriter {
@@ -103,46 +103,35 @@ impl ClassWriter {
         }
     }
 
-    pub fn extends(&mut self, name: &ClassName) -> &mut Self {
+    pub fn extends(&mut self, name: &str) -> &mut Self {
         assert!(self.extends.is_none());
         self.extends = Some(self.pool.class(name));
         self
     }
-    pub fn implements(&mut self, name: &ClassName) -> &mut Self {
+    pub fn implements(&mut self, name: &str) -> &mut Self {
         self.implements.push(self.pool.class(name));
         self
     }
 
-    pub fn field(&mut self, access: EnumSet<FFlags>, name: &str, ty: &Type) -> &mut FieldData {
-        let mut field = FieldData {
+    pub fn field(&mut self, access: EnumSet<FFlags>, name: &str, ty: &str) -> &mut FieldData {
+        let field = FieldData {
             access,
             name: name.to_string(),
-            jni_sig: ty.display_jni().to_string(),
+            jni_sig: ty.to_string(),
             attributes: Default::default(),
         };
-        field
-            .attributes
-            .push(Signature::new(&ty.display_jni_generic().to_string()));
         self.fields.push(field);
         self.fields.last_mut().unwrap()
     }
-    pub fn method(
-        &mut self,
-        access: EnumSet<MFlags>,
-        name: &str,
-        ty: &MethodSig,
-    ) -> &mut MethodData {
-        let mut method = MethodData {
+    pub fn method(&mut self, access: EnumSet<MFlags>, name: &str, ty: &str) -> &mut MethodData {
+        let method = MethodData {
             access,
             name: name.to_string(),
-            jni_sig: ty.display_jni().to_string(),
+            jni_sig: ty.to_string(),
             attributes: Default::default(),
             code_written: false,
-            arg_count: ty.params.len(),
+            arg_count: MethodSig::parse_jni(ty).unwrap().params.len(),
         };
-        method
-            .attributes
-            .push(Signature::new(&ty.display_jni_generic().to_string()));
         self.methods.push(method);
         self.methods.last_mut().unwrap()
     }
@@ -173,9 +162,7 @@ impl ClassWriter {
         if let Some(extends) = self.extends {
             extends.write(&mut body)?;
         } else {
-            self.pool
-                .class(&ClassName::new(&["java", "lang"], "Object"))
-                .write(&mut body)?;
+            self.pool.class("java/lang/Object").write(&mut body)?;
         }
         assert!(self.implements.len() <= u16::MAX as usize);
         body.write_u16::<BE>(self.implements.len() as u16)?;
@@ -216,7 +203,7 @@ impl ClassWriter {
 
         Ok(())
     }
-    pub fn into_vec(mut self) -> Vec<u8> {
+    pub fn into_vec(self) -> Vec<u8> {
         let mut cursor = Cursor::new(Vec::<u8>::new());
         self.write(&mut cursor)
             .expect("Could not generate Java classfile.");

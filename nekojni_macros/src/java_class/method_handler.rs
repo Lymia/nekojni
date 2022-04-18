@@ -1,8 +1,10 @@
 use crate::{errors::*, java_class::JavaClassCtx, utils::*, MacroCtx};
 use darling::FromAttributes;
 use enumset::EnumSet;
-use nekojni_classfile::MFlags;
-use nekojni_signatures::{ClassName, MethodName};
+use nekojni_codegen::{
+    signatures::{ClassName, MethodName},
+    MFlags,
+};
 use proc_macro2::{Span, TokenStream as SynTokenStream, TokenStream};
 use quote::{quote, quote_spanned};
 use syn::{
@@ -670,7 +672,7 @@ pub(crate) fn method_wrapper(
             .replace(".", ";");
         let export_name = format!(
             "__njni_modinfo_v1__{}_{}",
-            ClassName::new(&[&pkg_name], &version).display_jni_export(),
+            ClassName::new(vec![pkg_name], &version).display_jni_export(),
             class_name.display_jni_export(),
         );
 

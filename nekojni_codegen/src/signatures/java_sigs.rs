@@ -1,4 +1,4 @@
-use crate::*;
+use crate::signatures::*;
 use pest::error::*;
 use pest_consume::{match_nodes, Parser};
 use std::{
@@ -7,7 +7,7 @@ use std::{
 };
 
 #[derive(Parser)]
-#[grammar = "java_signature.pest"]
+#[grammar = "signatures/java_signature.pest"]
 struct JavaParser;
 type Result<T> = std::result::Result<T, Error<Rule>>;
 type Node<'i> = pest_consume::Node<'i, Rule, ()>;

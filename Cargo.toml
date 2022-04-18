@@ -22,9 +22,8 @@ lazy_static = "1.4.0"
 parking_lot = { version = "0.12.0", features = ["nightly", "arc_lock"] }
 thiserror = "1.0.30"
 
-nekojni_classfile = { version = "0.1.0", path = "nekojni_classfile" }
 nekojni_codegen = { version = "0.1.0", path = "nekojni_codegen" }
 nekojni_macros = { version = "0.1.0", path = "nekojni_macros" }
 
 [workspace]
-members = ["nekojni_classfile", "nekojni_cli", "nekojni_codegen", "nekojni_macros", "nekojni_signatures"]
+members = ["nekojni_cli", "nekojni_codegen", "nekojni_macros"]

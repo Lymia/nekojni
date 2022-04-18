@@ -1,5 +1,3 @@
-#![deny(unused_must_use)]
-
 mod java_sigs;
 mod jni_exports;
 mod jni_sigs;
