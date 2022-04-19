@@ -6,6 +6,7 @@ extern crate core;
 mod class_data;
 #[cfg(feature = "classfile")]
 mod classfile;
+pub mod constcat;
 mod flags;
 mod generate_precompiled;
 #[cfg(feature = "hash")]

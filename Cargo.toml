@@ -14,18 +14,17 @@ crate-type = ["cdylib"]
 
 [dependencies]
 chashmap = "2.2.2"
-constcat = "0.1.1"
 enumset = "1.0.8"
 jni = "0.19"
 lazy_static = "1.4.0"
 parking_lot = { version = "0.12.0", features = ["nightly", "arc_lock"] }
 thiserror = "1.0.30"
 
-nekojni_codegen = { version = "0.1.0", path = "nekojni_codegen" }
+nekojni_utils = { version = "0.1.0", path = "nekojni_utils" }
 nekojni_macros = { version = "0.1.0", path = "nekojni_macros" }
 
 [build-dependencies]
 rustc_version = "0.4.0"
 
 [workspace]
-members = ["nekojni_cli", "nekojni_codegen", "nekojni_macros"]
+members = ["nekojni_cli", "nekojni_utils", "nekojni_macros"]

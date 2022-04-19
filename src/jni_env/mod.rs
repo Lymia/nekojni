@@ -1,3 +1,4 @@
+pub mod objects;
 mod param_traits;
 
 use crate::{errors::*, java_class::object_id::IdManager};
@@ -64,14 +65,7 @@ fn jni_new_ref(env: JNIEnv) -> Result<Arc<JniEnvCacheData>> {
         // create the new class we used to register the shutdown hook
         let cache_offset = format!("{:016x}", &CACHES as *const _ as usize as u64);
         let new_name = format!("moe/lymia/nekojni/ShutdownHook_{cache_offset}");
-        let class_data = nekojni_codegen::generate_shutdown_hook(&new_name);
-
-        // register the native method handler
-        env.register_native_methods(&new_name, &[NativeMethod {
-            name: JNIString::from("native_shutdown"),
-            sig: JNIString::from("()V"),
-            fn_ptr: jni_shutdown as *mut _,
-        }])?;
+        let class_data = nekojni_utils::generate_shutdown_hook(&new_name);
 
         // define the shutdown hook class and install it
         let class_loader = env
@@ -83,6 +77,15 @@ fn jni_new_ref(env: JNIEnv) -> Result<Arc<JniEnvCacheData>> {
             )?
             .l()?;
         env.define_class(&new_name, class_loader, &class_data)?;
+
+        // register the native method handler
+        env.register_native_methods(&new_name, &[NativeMethod {
+            name: JNIString::from("native_shutdown"),
+            sig: JNIString::from("()V"),
+            fn_ptr: jni_shutdown as *mut _,
+        }])?;
+
+        // install the shutdown hook
         env.call_static_method(&new_name, "install", "()V", &[])?;
 
         // return a lock to the cache
@@ -90,12 +93,16 @@ fn jni_new_ref(env: JNIEnv) -> Result<Arc<JniEnvCacheData>> {
     }
 }
 extern "system" fn jni_shutdown(env: JNIEnv, class: jclass) {
-    crate::internal::panicking::catch_panic_jni(env, |env| {
-        let offset = vm_offset(*env).expect("Could not find offset?");
-        CACHES
-            .remove(&offset)
-            .expect("JNIEnv has already been shutdown?");
-    })
+    crate::internal::panicking::catch_panic_jni(
+        env,
+        |env| {
+            let offset = vm_offset(*env).expect("Could not find offset?");
+            CACHES
+                .remove(&offset)
+                .expect("JNIEnv has already been shutdown?");
+        },
+        "java/lang/RuntimeException",
+    )
 }
 
 /// A wrapper for a [`JNIEnv`] that implements some additional functionality used by nekojni.

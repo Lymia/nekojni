@@ -23,6 +23,7 @@ macro_rules! impl_borrowed_from_owned {
 mod basic;
 mod java_type;
 mod jni_ref;
+mod objects;
 mod strings;
 
 pub use java_type::*;

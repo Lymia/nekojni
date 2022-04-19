@@ -3,7 +3,7 @@ mod method_handler;
 use crate::{errors::*, utils::*, MacroCtx};
 use darling::FromAttributes;
 use enumset::EnumSet;
-use nekojni_codegen::CFlags;
+use nekojni_utils::CFlags;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use syn::{parse2, spanned::Spanned, ImplItem, ItemImpl, Type};
@@ -129,7 +129,7 @@ fn jni_process_impl(
 
     let class_name = parse_class_name(&class_name)?.display_jni().to_string();
     let cl_flags = args.parse_flags(&attr)?;
-    let cl_id = super::chain_next();
+    let cl_id = if is_import { 0 } else { super::chain_next() };
 
     // Parse the supertypes.
     let extends_class = match &args.extends {
@@ -283,7 +283,6 @@ fn jni_process_impl(
                     (&helper).run_chain_rev();
                 }
             }
-
             #add_to_list_fn
         }
     } else {
@@ -303,7 +302,7 @@ fn jni_process_impl(
                 const INIT_ID: usize = #cl_id;
                 const JNI_TYPE: &'static str = #class_name;
                 const JNI_TYPE_SIG: &'static str =
-                    #nekojni_internal::constcat!("L", #class_name, ";");
+                    #nekojni_internal::constcat_const!("L", #class_name, ";");
 
                 #create_ref
             }

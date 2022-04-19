@@ -52,3 +52,8 @@ pub fn generate_module_init_wrapper(class_name: &str, loader_name: &str) -> Vec<
     let data = replace_str(&data, b"moe/lymia/nekojni/NativeLibraryNullLoader", loader_name);
     data
 }
+
+pub fn generate_module_exception_class(class_name: &str) -> Vec<u8> {
+    let data = include_bytes!("moe/lymia/nekojni/ModuleException.class");
+    replace_str(data, b"moe/lymia/nekojni/ModuleException", class_name)
+}

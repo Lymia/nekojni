@@ -1,13 +1,13 @@
 #![feature(arbitrary_self_types)]
 
-use nekojni::*;
+use nekojni::{objects::JArray, *};
 
 pub struct TestClass {
     counter: u32,
 }
 
 #[jni_export]
-#[jni(package = "moe.lymia.test", extends = "java.lang.Thread")]
+#[jni(package = "moe.lymia.nekojni.test", extends = "java.lang.Thread")]
 impl TestClass {
     pub extern "Java" fn test_func(self: &JniRef<Self>, a: u32, b: u32, c: u64) -> u32 {}
     pub extern "Java" fn test_func_2(self: &JniRef<Self>, a: u32) {}
@@ -50,8 +50,20 @@ impl System {
     pub extern "Java" fn get_property(env: JniEnv, prop: &str) -> Result<String> {}
 }
 
+pub struct MainClass;
+
+#[jni_export]
+#[jni(package = "moe.lymia.nekojni.test")]
+impl MainClass {
+    pub fn main(env: JniEnv, array: JArray<String>) -> Result<()> {
+        println!("Hello, world (from Rust)!");
+        println!("Java home: {}", System::get_property(env, "java.home")?);
+        Ok(())
+    }
+}
+
 jni_module!(
-    JniModule,
-    "moe.lymia.nekojni.test.JniInit",
-    "moe.lymia.nekojni.test.JniException"
+    TestClassesModule,
+    "moe.lymia.nekojni.test.TestClassesInit",
+    "moe.lymia.nekojni.test.TestClassesException"
 );

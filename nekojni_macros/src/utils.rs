@@ -5,7 +5,7 @@ use crate::{
     MacroCtx,
 };
 use enumset::{EnumSet, EnumSetType};
-use nekojni_codegen::signatures::ClassName;
+use nekojni_utils::signatures::ClassName;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as SynTokenStream};
 use quote::*;

@@ -1,7 +1,7 @@
 use crate::{errors::*, java_class::JavaClassCtx, utils::*, MacroCtx};
 use darling::FromAttributes;
 use enumset::EnumSet;
-use nekojni_codegen::{
+use nekojni_utils::{
     signatures::{ClassName, MethodName},
     MFlags,
 };
@@ -15,7 +15,7 @@ use syn::{
 
 #[derive(Debug, FromAttributes)]
 #[darling(attributes(jni))]
-pub(crate) struct FunctionAttrs {
+struct FunctionAttrs {
     #[darling(default)]
     rename: Option<String>,
     #[darling(default)]
@@ -40,14 +40,18 @@ pub(crate) struct FunctionAttrs {
     acc_synchronized: bool,
 }
 impl FunctionAttrs {
-    pub(crate) fn check_internal_used(&self) -> Result<()> {
+    fn check_internal_used(&self) -> Result<()> {
         if self.direct_export.is_some() || self.export_module_info.is_some() {
             error(Span::call_site(), "Attrs starting with `__njni_` are internal.")?;
         }
         Ok(())
     }
 
-    pub(crate) fn parse_flags(&self, span: &impl Spanned) -> Result<EnumSet<MFlags>> {
+    fn parse_flags(
+        &self,
+        span: &impl Spanned,
+        self_mode: &FuncSelfMode,
+    ) -> Result<EnumSet<MFlags>> {
         if !self.acc_open && self.acc_abstract {
             error(span.span(), "`abstract` methods must also be `open`.")?;
         }
@@ -72,6 +76,11 @@ impl FunctionAttrs {
         if self.acc_synchronized {
             flags.insert(MFlags::Synchronized);
         }
+
+        if let FuncSelfMode::Static = self_mode {
+            flags.insert(MFlags::Static);
+        }
+
         Ok(flags)
     }
 }
@@ -346,7 +355,7 @@ fn method_wrapper_java(
             #wrap_params
             #(#param_names: &#param_types,)*
         ) -> #ret_ty {
-            const SIGNATURE: &'static str = #nekojni_internal::constcat!(
+            const SIGNATURE: &'static str = #nekojni_internal::constcat_const!(
                 "(",
                 #(<#param_types as #nekojni::conversions::JavaConversionType>::JNI_TYPE,)*
                 ")",
@@ -417,7 +426,7 @@ fn method_wrapper_exported(
     let output_span = item.sig.output.span();
 
     // Parse function access
-    let m_flags = attrs.parse_flags(&item.sig)?;
+    let m_flags = attrs.parse_flags(&item.sig, &self_mode)?;
     if m_flags.contains(MFlags::Abstract) {
         error(sig_span, "Concrete methods cannot be `abstract`.")?;
     }
@@ -575,9 +584,11 @@ fn method_wrapper_exported(
                 #(#param_names_java: <#param_types as #nekojni::conversions::JavaConversionType>
                     ::JavaType,)*
             ) -> <#ret_ty as #nekojni_internal::MethodReturn>::ReturnTy {
-                #nekojni_internal::catch_panic_jni::<#ret_ty, _>(env, |env| unsafe {
-                    #fn_call_body
-                })
+                #nekojni_internal::catch_panic_jni::<#ret_ty, _>(
+                    env,
+                    |env| unsafe { #fn_call_body },
+                    crate::__njni_module_info::EXCEPTION_CLASS,
+                )
             }
         });
     let java_sig_params = quote_spanned! { sig_span =>
@@ -589,7 +600,7 @@ fn method_wrapper_exported(
         components
             .generated_private_items
             .extend(quote_spanned! { sig_span =>
-                const #method_sig_native: &'static str = #nekojni_internal::constcat!(
+                const #method_sig_native: &'static str = #nekojni_internal::constcat_const!(
                     "(",
                     #extra_param_java
                     #java_sig_params
@@ -602,7 +613,7 @@ fn method_wrapper_exported(
     components
         .generated_private_items
         .extend(quote_spanned! { sig_span =>
-            const #method_sig: &'static str = #nekojni_internal::constcat!(
+            const #method_sig: &'static str = #nekojni_internal::constcat_const!(
                 "(",
                 #java_sig_params
                 ")",

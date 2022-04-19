@@ -13,6 +13,7 @@ pub struct NativeClassWrapper {
     extends: String,
     id_param: String,
     supporting: HashMap<String, Vec<u8>>,
+    constructor_generated: bool,
 }
 impl NativeClassWrapper {
     pub fn new(access: EnumSet<CFlags>, name: &str, extends: &str, id_param: &str) -> Self {
@@ -27,6 +28,7 @@ impl NativeClassWrapper {
             extends: extends.to_string(),
             id_param: id_param.to_string(),
             supporting: HashMap::new(),
+            constructor_generated: false,
         }
     }
     pub fn implements(&mut self, implement: &str) {
@@ -48,6 +50,8 @@ impl NativeClassWrapper {
         super_sig_str: &str,
         late_init: &[&'static str],
     ) {
+        self.constructor_generated = true;
+
         // parse the signatures passed in
         let sig = MethodSig::parse_jni(sig_str).unwrap();
         let native_sig = MethodSig::parse_jni(native_sig_str).unwrap();
@@ -236,7 +240,17 @@ impl NativeClassWrapper {
         return_param(&mut code, &sig.ret_ty);
     }
 
-    pub(crate) fn add_to_jar(self, data: &mut ClassData) {
+    pub(crate) fn add_to_jar(mut self, data: &mut ClassData) {
+        // generate an empty constructor if there are none
+        if !self.constructor_generated {
+            let method = self.class.method(MFlags::Public.into(), "<init>", "()V");
+            let mut code = method.code();
+            code.aload(0)
+                .invokespecial(&self.extends, "<init>", "()V")
+                .vreturn();
+        }
+
+        // generate code
         data.add_class(&self.name, self.class.into_vec());
         for (name, class_data) in self.supporting {
             data.add_class(&name, class_data);

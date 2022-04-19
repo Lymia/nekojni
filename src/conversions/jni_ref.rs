@@ -1,5 +1,3 @@
-#![allow(deprecated)]
-
 use super::*;
 use crate::{java_class::JavaClass, JniRef};
 use jni::objects::JObject;

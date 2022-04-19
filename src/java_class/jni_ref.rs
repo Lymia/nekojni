@@ -132,12 +132,7 @@ pub fn new_wrapped<'env, T: JavaClass<'env>>(
     env: JniEnv<'env>,
     this: JObject<'env>,
 ) -> Result<JniRef<'env, T>> {
-    Ok(JniRef {
-        this,
-        inner: InnerRef::Default,
-        env,
-        phantom: PhantomData,
-    })
+    Ok(JniRef { this, inner: InnerRef::Default, env, phantom: PhantomData })
 }
 
 /// A [`JniRef`] that allows read-write access to its contents.

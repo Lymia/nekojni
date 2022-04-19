@@ -60,6 +60,10 @@ impl ClassData {
             ),
         );
     }
+    pub fn add_module_exception(&mut self, name: &str) {
+        self.class_info
+            .insert(name.to_string(), generate_precompiled::generate_module_exception_class(name));
+    }
     pub fn add_exported_class(&mut self, exported: NativeClassWrapper) {
         exported.add_to_jar(self);
     }

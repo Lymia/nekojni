@@ -10,4 +10,4 @@ goblin = "0.5.1"
 dlopen = "0.1.8"
 
 nekojni = { version = "0.1.0", path = ".." }
-nekojni_codegen = { version = "0.1.0", path = "../nekojni_codegen", features = ["cli"] }
+nekojni_utils = { version = "0.1.0", path = "../nekojni_utils", features = ["cli"] }

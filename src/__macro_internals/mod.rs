@@ -12,10 +12,9 @@ pub use crate::{
         exports, JavaClassImpl, JavaClassInfo, JavaModuleImpl, JavaModuleInfo, RustContents,
     },
 };
-pub use constcat::constcat;
 pub use extract_self_param::*;
-pub use nekojni_codegen::{CFlags, FFlags, MFlags};
 pub use nekojni_macros::{java_name_to_jni, jni_export_internal};
+pub use nekojni_utils::{constcat_const, constcat_generic, CFlags, FFlags, MFlags};
 pub use once::OnceCache;
 pub use registration::*;
 pub use return_ty::ImportReturnTy;

@@ -77,12 +77,18 @@ fn get_panic_string(e: Box<dyn Any + Send + 'static>) -> String {
         "could not retrieve panic data".to_string()
     }
 }
+
+#[inline(never)]
+fn fail(e: Error) -> ! {
+    eprintln!("Error throwing native exception: {e}");
+    eprintln!("Aborting due to fatal error...");
+    std::process::abort(); // rip
+}
+
 #[inline(never)]
 fn check_fail(r: Result<()>) {
     if let Err(e) = r {
-        eprintln!("Error throwing native exception: {e:?}");
-        eprintln!("Aborting due to fatal error...");
-        std::process::abort(); // rip
+        fail(e);
     }
 }
 
@@ -99,6 +105,7 @@ pub fn catch_panic<R>(func: impl FnOnce() -> R) -> Result<R> {
 pub fn catch_panic_jni<R: MethodReturn, F: FnOnce(JniEnv) -> R>(
     env: JNIEnv,
     func: F,
+    exception_class: &str,
 ) -> <R::Intermediate as JavaConversionType>::JavaType
 where
     for<'a> R::Intermediate: JavaReturnConversion<'a>,
@@ -106,8 +113,7 @@ where
     // for safety, just in case there's a bug that might cause panics in e.g. backtrace, since
     // we invoke a lot of weird stuff trying to get the panic string.
     match std::panic::catch_unwind(AssertUnwindSafe(|| {
-        let exception_class = crate::internal::globals::get_default_exception_class();
-        JniEnv::with_env(env, |env| {
+        match JniEnv::with_env(env, |env| {
             match catch_panic(|| {
                 let result = func(env);
                 if result.is_error() {
@@ -123,9 +129,12 @@ where
                     Ok(R::Intermediate::null_ret())
                 }
             }
-        })
+        }) {
+            Ok(v) => v,
+            Err(e) => fail(e),
+        }
     })) {
-        Ok(Ok(v)) => v,
+        Ok(v) => v,
         _ => std::process::abort(),
     }
 }

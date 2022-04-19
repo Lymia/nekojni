@@ -1,4 +1,5 @@
 #![feature(backtrace, downcast_unchecked)]
+#![feature(generic_const_exprs, const_trait_impl, const_slice_index)]
 #![deny(unused_must_use)]
 
 #[macro_use]
@@ -23,7 +24,10 @@ pub mod conversions;
 
 /// The module containing types used to represent Java objects.
 pub mod objects {
-    pub use crate::java_class::{JavaClass, JavaModule};
+    pub use crate::{
+        java_class::{JavaClass, JavaModule},
+        jni_env::objects::*,
+    };
 }
 
 #[doc(inline)]
@@ -67,6 +71,8 @@ macro_rules! jni_module {
         mod __njni_module_info {
             use $crate::{jni_export, jni, Result};
             use $crate::__macro_internals::*;
+
+            pub const EXCEPTION_CLASS: &'static str = java_name_to_jni!($except_class_name);
 
             #[allow(unused)]
             mod check_path {
