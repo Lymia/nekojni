@@ -4,6 +4,11 @@ version = "0.1.0"
 authors = ["Lymia Aluysia <lymia@lymia.moe>"]
 edition = "2021"
 
+[profile.release]
+opt-level = 3
+lto = true
+debug = 1
+
 [features]
 default = ["codegen"]
 codegen = []
@@ -13,6 +18,7 @@ name = "test_classes"
 crate-type = ["cdylib"]
 
 [dependencies]
+backtrace = "0.3.65"
 chashmap = "2.2.2"
 enumset = "1.0.8"
 konst = "0.2.13"

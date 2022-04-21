@@ -657,7 +657,7 @@ fn method_wrapper_exported(
 
     // Prepare code fragments for generating the wrapper function
     let native_export = components.gensym("NATIVE_EXPORT");
-    let wrapper_name = components.gensym(&format!("wrapper_{rust_name_str}"));
+    let wrapper_name = components.gensym(&rust_name_str);
     let entry_point_name = components.gensym(&format!("entry_point_{rust_name_str}"));
     let exported_method = components.gensym("EXPORTED_METHOD");
 
@@ -672,7 +672,7 @@ fn method_wrapper_exported(
     let access = enumset_to_toks(&ctx, quote!(#nekojni_internal::MFlags), m_flags);
 
     // Handle internal feature to directly export the Java_*_initialize function.
-    let direct_export_attrs = if let Some(class_name) = &attrs.direct_export {
+    let (direct_export_attrs, early_init) = if let Some(class_name) = &attrs.direct_export {
         let class_name = match ClassName::parse_java(class_name) {
             Ok(v) => v,
             Err(e) => error(Span::call_site(), format!("Could not parse class name: {e:?}"))?,
@@ -680,19 +680,25 @@ fn method_wrapper_exported(
         let method_name = MethodName::new(class_name, &rust_name_str);
         let method_name = method_name.display_jni_export().to_string();
 
-        quote_spanned! { sig_span =>
-            #[no_mangle]
-            #[export_name = #method_name]
-            pub // not technically an attr, but, this works anyway.
-        }
+        (
+            quote_spanned! { sig_span =>
+                #[no_mangle]
+                #[export_name = #method_name]
+                pub // not technically an attr, but, this works anyway.
+            },
+            quote_spanned! { sig_span =>
+                #nekojni_internal::early_init();
+            },
+        )
     } else {
-        quote!()
+        (quote!(), quote!())
     };
 
     // Generate the actual code.
     components
         .generated_private_impls
         .extend(quote_spanned! { sig_span =>
+            #[inline(never)] // helps make stack traces more understandable
             unsafe fn #wrapper_name<#lt>(
                 env: #nekojni::JniEnv<#lt>,
                 #self_param,
@@ -711,6 +717,7 @@ fn method_wrapper_exported(
                 #(#param_names_java:
                     <#param_types as #nekojni::conversions::JavaConversionType>::JavaType,)*
             ) -> <#ret_ty as #nekojni_internal::MethodReturn>::ReturnTy {
+                #early_init
                 #nekojni_internal::__njni_entry_point::<#ret_ty, _>(
                     env,
                     |env| unsafe {

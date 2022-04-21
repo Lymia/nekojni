@@ -14,7 +14,7 @@ fn main() {
     ] {
         let path = PathBuf::from(bin);
         if !path.exists() {
-            continue
+            continue;
         }
 
         let binary = native_loader::ParsedBinary::parse(path).unwrap();

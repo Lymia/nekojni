@@ -15,8 +15,6 @@ mod hash_util;
 mod native_class_wrapper;
 #[cfg(feature = "signature")]
 pub mod signatures;
-#[cfg(feature = "classfile")]
-mod utils;
 
 #[cfg(feature = "classfile")]
 pub use class_data::*;

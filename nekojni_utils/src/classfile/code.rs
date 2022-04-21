@@ -1,4 +1,4 @@
-#![allow(unused)] // TODO: Sort this out some day.
+#![allow(unused)]
 
 use crate::{
     classfile::{attributes::Attribute, PoolId, PoolWriter},
@@ -11,22 +11,11 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-static LABEL_ID: AtomicUsize = AtomicUsize::new(0);
-
-#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub struct LabelId(usize);
-impl LabelId {
-    pub fn new() -> LabelId {
-        LabelId(LABEL_ID.fetch_add(1, Ordering::Relaxed))
-    }
-}
-
 #[derive(Debug, Default)]
 pub struct MethodWriter {
-    cur_ip: usize,
+    cur_stack: isize,
+    max_stack: isize,
     max_field: u16,
-    label_map: HashMap<LabelId, usize>,
-    label_locs: HashMap<usize, Vec<LabelId>>,
     instr: Vec<Instruction>,
 }
 impl Attribute for MethodWriter {
@@ -34,56 +23,16 @@ impl Attribute for MethodWriter {
         "Code"
     }
     fn write(&self, pool: &mut PoolWriter, out: &mut Cursor<Vec<u8>>) -> Result<(), Error> {
-        // compute maximum stack
-        let mut cur_ip = 0;
-        let mut cur_stack = 0isize;
-        let mut max_stack = 0isize;
-        let mut label_cache: HashMap<LabelId, isize> = HashMap::new();
-        for instr in &self.instr {
-            match instr {
-                Instruction::StackClear => cur_stack = 0,
-                Instruction::StackReset(label) => {
-                    cur_stack = *label_cache.get(&label).expect("Failed to resolve label!");
-                }
-                _ => {
-                    cur_stack += instr.stack_change();
-                }
-            }
-            if let Some(labels) = self.label_locs.get(&cur_ip) {
-                for label in labels {
-                    label_cache.insert(*label, cur_stack);
-                }
-            }
-
-            assert!(cur_stack <= i16::MAX as isize);
-            assert!(cur_stack >= 0);
-
-            cur_ip += instr.instr_size();
-            max_stack = max_stack.max(cur_stack);
-        }
-
         // write header
-        out.write_u16::<BE>(max_stack as u16)?;
+        out.write_u16::<BE>(self.max_stack as u16)?;
         out.write_u16::<BE>(self.max_field)?;
 
         // write code
         let mut code = Cursor::new(Vec::<u8>::new());
-        cur_ip = 0;
         for instr in &self.instr {
             match instr {
-                Instruction::Branch(br, label) => {
-                    let label_target = self.label_map.get(&label).expect("Could not find label.");
-                    let diff = *label_target as isize - cur_ip as isize;
-                    let diff: i16 = diff.try_into().expect("Branch too large.");
-
-                    code.write_u8(br.opcode())?;
-                    code.write_i16::<BE>(diff)?;
-                }
-                Instruction::StackClear => {}
-                Instruction::StackReset(_) => {}
                 _ => instr.write(pool, &mut code)?,
             }
-            cur_ip += instr.instr_size();
         }
         let code = code.into_inner();
         assert!(code.len() <= u32::MAX as usize);
@@ -99,8 +48,15 @@ impl Attribute for MethodWriter {
     }
 }
 impl MethodWriter {
+    #[inline(never)]
     fn push_instr(&mut self, instr: Instruction) -> &mut Self {
-        self.cur_ip += instr.instr_size();
+        // adjust the stack size based on this instruction.
+        self.cur_stack += instr.stack_change();
+        assert!(self.cur_stack <= i16::MAX as isize);
+        assert!(self.cur_stack >= 0);
+        self.max_stack = self.max_stack.max(self.cur_stack);
+
+        // push the actual instruction itself
         self.instr.push(instr);
         self
     }
@@ -111,55 +67,62 @@ impl MethodWriter {
         self
     }
 
-    pub fn label(&mut self, id: LabelId) -> &mut Self {
-        assert!(!self.label_map.contains_key(&id));
-        self.label_map.insert(id, self.cur_ip);
-        self.label_locs.entry(self.cur_ip).or_default().push(id);
-        self
-    }
-
+    #[inline(never)]
     pub fn invokeinterface(&mut self, class: &str, name: &str, sig: &str) -> &mut Self {
         self.push_instr(Instruction::invokeinterface(InvokeData::new(class, name, sig)))
     }
+    #[inline(never)]
     pub fn invokespecial(&mut self, class: &str, name: &str, sig: &str) -> &mut Self {
         self.push_instr(Instruction::invokespecial(InvokeData::new(class, name, sig)))
     }
+    #[inline(never)]
     pub fn invokestatic(&mut self, class: &str, name: &str, sig: &str) -> &mut Self {
         self.push_instr(Instruction::invokestatic(InvokeData::new(class, name, sig)))
     }
+    #[inline(never)]
     pub fn invokevirtual(&mut self, class: &str, name: &str, sig: &str) -> &mut Self {
         self.push_instr(Instruction::invokevirtual(InvokeData::new(class, name, sig)))
     }
 
+    #[inline(never)]
     pub fn new(&mut self, ty: &str) -> &mut Self {
         self.push_instr(Instruction::new(ty.to_string()))
     }
+    #[inline(never)]
     pub fn anewarray(&mut self, ty: &str) -> &mut Self {
         self.push_instr(Instruction::anewarray(ty.to_string()))
     }
+    #[inline(never)]
     pub fn checkcast(&mut self, ty: &str) -> &mut Self {
         self.push_instr(Instruction::checkcast(ty.to_string()))
     }
 
+    #[inline(never)]
     pub fn getfield(&mut self, class: &str, name: &str, ty: &str) -> &mut Self {
         self.push_instr(Instruction::getfield(FieldData::new(class, name, ty)))
     }
+    #[inline(never)]
     pub fn getstatic(&mut self, class: &str, name: &str, ty: &str) -> &mut Self {
         self.push_instr(Instruction::getstatic(FieldData::new(class, name, ty)))
     }
+    #[inline(never)]
     pub fn putfield(&mut self, class: &str, name: &str, ty: &str) -> &mut Self {
         self.push_instr(Instruction::putfield(FieldData::new(class, name, ty)))
     }
+    #[inline(never)]
     pub fn putstatic(&mut self, class: &str, name: &str, ty: &str) -> &mut Self {
         self.push_instr(Instruction::putstatic(FieldData::new(class, name, ty)))
     }
 
+    #[inline(never)]
     pub fn aconst_str(&mut self, str: &str) -> &mut Self {
         self.push_instr(Instruction::aconst_str(str.to_string()))
     }
+    #[inline(never)]
     pub fn aconst_class(&mut self, class: &str) -> &mut Self {
         self.push_instr(Instruction::aconst_class(class.to_string()))
     }
+    #[inline(never)]
     pub fn fconst(&mut self, v: f32) -> &mut Self {
         if v == 0.0 {
             self.push_instr(Instruction::Basic(BasicInstruction::fconst_0))
@@ -171,6 +134,7 @@ impl MethodWriter {
             self.push_instr(Instruction::fconst(v))
         }
     }
+    #[inline(never)]
     pub fn iconst(&mut self, v: i32) -> &mut Self {
         match v {
             -1 => self.push_instr(Instruction::Basic(BasicInstruction::iconst_m1)),
@@ -183,6 +147,7 @@ impl MethodWriter {
             _ => self.push_instr(Instruction::iconst(v)),
         }
     }
+    #[inline(never)]
     pub fn dconst(&mut self, v: f64) -> &mut Self {
         if v == 0.0 {
             self.push_instr(Instruction::Basic(BasicInstruction::dconst_0))
@@ -192,6 +157,7 @@ impl MethodWriter {
             self.push_instr(Instruction::dconst(v))
         }
     }
+    #[inline(never)]
     pub fn lconst(&mut self, v: i64) -> &mut Self {
         match v {
             0 => self.push_instr(Instruction::Basic(BasicInstruction::lconst_0)),
@@ -288,71 +254,9 @@ enum Instruction {
     dstore(u16),
     lstore(u16),
 
-    Branch(BranchInstruction, LabelId),
-
-    StackClear,
-    StackReset(LabelId),
-
     Basic(BasicInstruction),
 }
 impl Instruction {
-    fn instr_size(&self) -> usize {
-        match self {
-            Instruction::invokeinterface(_) => 5,
-            Instruction::invokespecial(_) => 3,
-            Instruction::invokestatic(_) => 3,
-            Instruction::invokevirtual(_) => 3,
-
-            Instruction::new(_) => 3,
-            Instruction::anewarray(_) => 3,
-            Instruction::checkcast(_) => 3,
-            Instruction::getfield(_) => 3,
-            Instruction::getstatic(_) => 3,
-            Instruction::putfield(_) => 3,
-            Instruction::putstatic(_) => 3,
-
-            Instruction::iconst(i) => {
-                if *i <= i8::MAX as i32 && *i >= i8::MIN as i32 {
-                    2
-                } else {
-                    3
-                }
-            }
-            Instruction::aconst_class(_) | Instruction::aconst_str(_) | Instruction::fconst(_) => 3,
-            Instruction::dconst(_) | Instruction::lconst(_) => 3,
-
-            Instruction::aload(c)
-            | Instruction::fload(c)
-            | Instruction::iload(c)
-            | Instruction::dload(c)
-            | Instruction::lload(c) => {
-                if *c <= 255 {
-                    2
-                } else {
-                    4
-                }
-            }
-            Instruction::astore(c)
-            | Instruction::fstore(c)
-            | Instruction::istore(c)
-            | Instruction::dstore(c)
-            | Instruction::lstore(c) => {
-                if *c <= 255 {
-                    2
-                } else {
-                    4
-                }
-            }
-
-            Instruction::Branch(_, _) => 3,
-
-            Instruction::StackClear => 0,
-            Instruction::StackReset(_) => 0,
-
-            Instruction::Basic(_) => 1,
-        }
-    }
-
     //noinspection SpellCheckingInspection
     fn stack_change(&self) -> isize {
         use BasicInstruction::*;
@@ -379,11 +283,6 @@ impl Instruction {
             dload(_) | lload(_) => 2,
             astore(_) | fstore(_) | istore(_) => -1,
             dstore(_) | lstore(_) => -2,
-
-            Branch(br, _) => br.stack_diff(),
-
-            StackClear => unreachable!(),
-            StackReset(_) => unreachable!(),
 
             Basic(instr) => {
                 match instr {
@@ -546,9 +445,6 @@ impl Instruction {
             Instruction::istore(id) => self.write_id(&mut out, 0x36, *id)?,
             Instruction::dstore(id) => self.write_id(&mut out, 0x39, *id)?,
             Instruction::lstore(id) => self.write_id(&mut out, 0x37, *id)?,
-            Instruction::Branch(_, _) => unreachable!(),
-            Instruction::StackClear => unreachable!(),
-            Instruction::StackReset(_) => unreachable!(),
             Instruction::Basic(instr) => {
                 out.write_u8(instr.opcode())?;
             }
@@ -724,55 +620,10 @@ basic_instruction! {
     0x5f swap,
 }
 
-macro_rules! branch_instruction {
-    ($($hex:literal $name:ident $stack_diff:literal,)*) => {
-        #[derive(Copy, Clone, Debug)]
-        #[allow(non_camel_case_types)]
-        enum BranchInstruction {
-            $($name,)*
-        }
-        impl BranchInstruction {
-            fn opcode(&self) -> u8 {
-                match *self {
-                    $(BranchInstruction::$name => $hex,)*
-                }
-            }
-            fn stack_diff(&self) -> isize {
-                match *self {
-                    $(BranchInstruction::$name => -$stack_diff,)*
-                }
-            }
-        }
-        impl MethodWriter {$(
-            pub fn $name(&mut self, label: LabelId) -> &mut Self {
-                self.push_instr(Instruction::Branch(BranchInstruction::$name, label))
-            }
-        )*}
-    };
-}
-branch_instruction! {
-    0xa5 if_acmpeq 2,
-    0xa6 if_acmpne 2,
-    0x9f if_icmpeq 2,
-    0xa2 if_icmpge 2,
-    0xa3 if_icmpgt 2,
-    0xa4 if_icmple 2,
-    0xa1 if_icmplt 2,
-    0xa0 if_icmpne 2,
-    0x99 ifeq 1,
-    0x9c ifge 1,
-    0x9d ifgt 1,
-    0x9e ifle 1,
-    0x9b iflt 1,
-    0x9a ifne 1,
-    0xc7 ifnonnull 1,
-    0xc6 ifnull 1,
-    0xa7 goto 0,
-}
-
 macro_rules! proxy_instructions {
     ($($instr:ident)*) => {
         impl MethodWriter {$(
+            #[inline(never)]
             pub fn $instr(&mut self) -> &mut Self {
                 self.push_instr(Instruction::Basic(BasicInstruction::$instr))
             }
@@ -790,11 +641,12 @@ proxy_instructions! {
 
 macro_rules! proxy_loadstore {
     (
-        $(($l:ident $l0:ident $l1:ident $l2:ident $l3:ident))*
+        $(($l:ident $l0:ident $l1:ident $l2:ident $l3:ident, $ct:expr))*
     ) => {
         impl MethodWriter {$(
+            #[inline(never)]
             pub fn $l(&mut self, id: u16) -> &mut Self {
-                self.max_field = self.max_field.max(id + 1);
+                self.max_field = self.max_field.max(id + $ct);
                 self.push_instr(match id {
                     0 => Instruction::Basic(BasicInstruction::$l0),
                     1 => Instruction::Basic(BasicInstruction::$l1),
@@ -807,14 +659,14 @@ macro_rules! proxy_loadstore {
     };
 }
 proxy_loadstore! {
-    (aload aload_0 aload_1 aload_2 aload_3)
-    (fload fload_0 fload_1 fload_2 fload_3)
-    (iload iload_0 iload_1 iload_2 iload_3)
-    (dload dload_0 dload_1 dload_2 dload_3)
-    (lload lload_0 lload_1 lload_2 lload_3)
-    (astore astore_0 astore_1 astore_2 astore_3)
-    (fstore fstore_0 fstore_1 fstore_2 fstore_3)
-    (istore istore_0 istore_1 istore_2 istore_3)
-    (dstore dstore_0 dstore_1 dstore_2 dstore_3)
-    (lstore lstore_0 lstore_1 lstore_2 lstore_3)
+    (aload aload_0 aload_1 aload_2 aload_3, 1)
+    (fload fload_0 fload_1 fload_2 fload_3, 1)
+    (iload iload_0 iload_1 iload_2 iload_3, 1)
+    (dload dload_0 dload_1 dload_2 dload_3, 2)
+    (lload lload_0 lload_1 lload_2 lload_3, 2)
+    (astore astore_0 astore_1 astore_2 astore_3, 1)
+    (fstore fstore_0 fstore_1 fstore_2 fstore_3, 1)
+    (istore istore_0 istore_1 istore_2 istore_3, 1)
+    (dstore dstore_0 dstore_1 dstore_2 dstore_3, 2)
+    (lstore lstore_0 lstore_1 lstore_2 lstore_3, 2)
 }

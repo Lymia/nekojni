@@ -25,6 +25,7 @@ impl<T: JavaConversionType> MethodReturn for T {
     fn is_error(&self) -> bool {
         false
     }
+    #[inline(never)]
     fn emit_error(self, _env: JniEnv, _exception_class: &str) -> Result<()> {
         Err(Error::message("attempted to emit error from method that cannot fail"))
     }
@@ -81,8 +82,18 @@ fn get_panic_string(e: Box<dyn Any + Send + 'static>) -> String {
 
 #[inline(never)]
 #[cold]
-fn fail(e: Error) -> ! {
-    eprintln!("Error throwing native exception: {e}");
+pub fn panic_abort(e: Box<dyn Any + Send + 'static>) -> ! {
+    std::panic::catch_unwind(AssertUnwindSafe(|| {
+        println!("Panic encountered in nekojni internal code: {}", get_panic_string(e));
+    }))
+    .ok();
+    std::process::abort();
+}
+
+#[inline(never)]
+#[cold]
+pub fn fail(e: Error) -> ! {
+    eprintln!("Error thrown by internal nekojni code: {e}");
     eprintln!("Aborting due to fatal error...");
     std::process::abort(); // rip
 }
@@ -141,6 +152,6 @@ where
         }
     })) {
         Ok(v) => v,
-        _ => std::process::abort(),
+        Err(e) => panic_abort(e),
     }
 }

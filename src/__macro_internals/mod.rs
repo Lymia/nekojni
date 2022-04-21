@@ -4,7 +4,10 @@ mod registration;
 mod return_ty;
 
 pub use crate::{
-    internal::jni_entry::{MethodReturn, __njni_entry_point},
+    internal::{
+        init::early_init,
+        jni_entry::{MethodReturn, __njni_entry_point},
+    },
     java_class::{
         exports, JavaClassImpl, JavaClassInfo, JavaClassType, JavaModuleImpl, JavaModuleInfo,
         RustContents,

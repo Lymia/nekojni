@@ -1,7 +1,9 @@
 use crate::{
-    classfile::{ClassWriter, MethodWriter},
+    classfile::{
+        utils::{push_param, return_param},
+        ClassWriter, MethodWriter,
+    },
     signatures::{BasicType, ClassName, MethodSig, Type},
-    utils::{push_param, return_param},
     CFlags, ClassData, FFlags, MFlags,
 };
 use enumset::EnumSet;

@@ -1,8 +1,9 @@
 mod attributes;
 mod code;
 mod constant_pool;
+pub mod utils;
 
-pub use code::{LabelId, MethodWriter};
+pub use code::MethodWriter;
 
 use crate::{
     classfile::{
@@ -35,13 +36,13 @@ pub struct MethodData {
     attributes: AttributeTable,
 
     code_written: bool,
-    arg_count: usize,
+    arg_stack_size: usize,
 }
 impl MethodData {
     pub fn code(&mut self) -> MethodWriterGuard {
         assert!(!self.code_written);
         let mut writer = MethodWriter::default();
-        writer.argc(self.arg_count);
+        writer.argc(self.arg_stack_size);
         MethodWriterGuard { data: self, writer }
     }
 }
@@ -129,7 +130,13 @@ impl ClassWriter {
             jni_sig: ty.to_string(),
             attributes: Default::default(),
             code_written: false,
-            arg_count: MethodSig::parse_jni(ty).unwrap().params.len(),
+            arg_stack_size: {
+                let mut count = 0;
+                for param in MethodSig::parse_jni(ty).unwrap().params {
+                    count += utils::type_stack_size(&param);
+                }
+                count as usize
+            },
         };
         self.methods.push(method);
         self.methods.last_mut().unwrap()

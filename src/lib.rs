@@ -1,6 +1,6 @@
 #![allow(incomplete_features)]
 #![deny(unused_must_use)]
-#![feature(backtrace, downcast_unchecked, generic_const_exprs)]
+#![feature(downcast_unchecked, generic_const_exprs, label_break_value)]
 
 #[macro_use]
 mod errors;

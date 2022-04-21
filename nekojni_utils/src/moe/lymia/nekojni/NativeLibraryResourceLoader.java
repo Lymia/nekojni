@@ -70,11 +70,13 @@ public final class NativeLibraryResourceLoader {
                  os == OS_LINUX ? "-unknown-linux-gnu" : null;
         return accum;
     }
-    private static String getLibraryName(int os, int arch, String target, String hash, boolean isBinary) {
+    private static String getLibraryName(int os, int arch, String target, String hash, boolean isBinary, boolean isPdb) {
         String accum = "";
         if (os == OS_MACOS || os == OS_LINUX) accum += "lib";
         accum += LIBRARY_NAME + "-" + LIBRARY_VERSION + "." + target;
-        if (isBinary) {
+        if (isPdb) {
+            accum += "." + hash + ".pdb";
+        } else if (isBinary) {
             accum += "." + hash;
             accum += os == OS_WINDOWS ? ".dll" :
                      os == OS_MACOS ? ".dylib" :
@@ -101,12 +103,26 @@ public final class NativeLibraryResourceLoader {
             bytes.write(buf, 0, bytesRead);
         return bytes.toByteArray();
     }
+
+    private static void copyResource(String resource, Path target, boolean optional) throws IOException {
+        String binResName = "/" + IMAGE_RESOURCE_PREFIX + "/" + resource;
+        try (InputStream resourceData = NativeLibraryResourceLoader.class.getResourceAsStream(binResName)) {
+            if (resourceData == null) {
+                if (optional) return;
+                throw new RuntimeException("Native binary for your platform was not found: "+binResName);
+            }
+            Files.write(target, readStream(resourceData));
+        }
+    }
+    private static void deleteBin(Path path) throws IOException {
+        Files.deleteIfExists(path);
+    }
     private static synchronized void loadNativeLibrary() throws IOException {
         // gather information about the platform
         int os = getOperatingSystem();
         int arch = getArchitecture();
         String target = getTargetName(os, arch);
-        String hashFileName = getLibraryName(os, arch, target, null, false);
+        String hashFileName = getLibraryName(os, arch, target, null, false, false);
 
         // retrieve the hash metadata for the file
         String hashResName = "/" + IMAGE_RESOURCE_PREFIX + "/" + hashFileName;
@@ -120,12 +136,11 @@ public final class NativeLibraryResourceLoader {
 
         // find paths on-disk for our caches
         Path imageCachePath = getLibraryStore();
-        String binaryResName = getLibraryName(os, arch, target, hash, true);
+        String binaryResName = getLibraryName(os, arch, target, hash, true, false);
 
         // load the native library file to allow deletion to work properly
         Path imageLockPath = imageCachePath.resolve(binaryResName+".lock");
-        FileChannel channel = FileChannel.open(imageLockPath, StandardOpenOption.READ, StandardOpenOption.WRITE,
-                StandardOpenOption.CREATE);
+        FileChannel channel = FileChannel.open(imageLockPath, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE);
         FileLock sharedLock = channel.lock(0, 0, true);
         if (!sharedLock.isShared()) {
             throw new RuntimeException("Could not create shared lock for native binary!");
@@ -133,19 +148,11 @@ public final class NativeLibraryResourceLoader {
         NATIVE_LOCK = sharedLock;
 
         // copy the native library to disk
-        Path imageTargetPath = imageCachePath.resolve(binaryResName);
-        if (!Files.exists(imageTargetPath)) {
-            String binResName = "/" + IMAGE_RESOURCE_PREFIX + "/" + binaryResName;
-            try (InputStream resourceData = NativeLibraryResourceLoader.class.getResourceAsStream(binResName)) {
-                if (resourceData == null) {
-                    throw new RuntimeException("Native binary for your platform was not found: "+binResName);
-                }
-                Files.write(imageTargetPath, readStream(resourceData));
-            }
-        }
+        Path binaryTargetPath = imageCachePath.resolve(binaryResName);
+        if (!Files.exists(binaryTargetPath)) copyResource(binaryResName, binaryTargetPath, false);
 
         // load the native library itself
-        System.load(imageTargetPath.toString());
+        System.load(binaryTargetPath.toString());
 
         // try to clean up old binaries
         try (Stream<Path> path = Files.list(imageCachePath)) {
@@ -156,14 +163,13 @@ public final class NativeLibraryResourceLoader {
                 Path lockName = binaryName.getParent().resolve(binaryName.getFileName().toString() + ".lock");
                 if (!Files.exists(lockName)) {
                     // deleting an old binary without even a lock file existing
-                    Files.deleteIfExists(binaryName);
+                    deleteBin(binaryName);
                 } else {
                     // try locking the lock exclusively.
-                    try (FileChannel deleteLockChannel = FileChannel.open(lockName, StandardOpenOption.READ,
-                            StandardOpenOption.WRITE, StandardOpenOption.CREATE)) {
+                    try (FileChannel deleteLockChannel = FileChannel.open(lockName, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE)) {
                         try (FileLock lock = deleteLockChannel.tryLock()) {
                             if (lock != null) {
-                                Files.deleteIfExists(binaryName);
+                                deleteBin(binaryName);
                                 lock.close();
                                 Files.deleteIfExists(lockName);
                             }
