@@ -9,6 +9,14 @@ pub struct TestClass {
 #[jni_export]
 #[jni(package = "moe.lymia.nekojni.test", extends = "java.lang.Thread")]
 impl TestClass {
+    /*#[jni(constructor)]
+    pub extern "Java" fn new<'env>(
+        env: JniEnv<'env>,
+        a: u32,
+        b: String,
+        c: u64,
+    ) -> Result<JniRef<'env, Self>> {}*/
+
     pub extern "Java" fn test_func(self: &JniRef<Self>, a: u32, b: u32, c: u64) -> u32 {}
     pub extern "Java" fn test_func_2(self: &JniRef<Self>, a: u32) {}
     pub extern "Java" fn test_func_3(env: JniEnv, a: u32) {}
@@ -16,9 +24,11 @@ impl TestClass {
     pub extern "Java" fn test_func_5(env: JniEnv, a: u32) {}
     pub extern "Java" fn test_func_6(env: JniEnv, a: u32) -> u32 {}
 
-    pub fn increment_foo(&mut self) -> u32 {
-        self.counter += 1;
-        self.counter
+    pub fn combine<'env>(self: &mut JniRefMut<'env, Self>, other: &mut JniRef<'env, Self>) {
+        self.counter += other.counter;
+    }
+    pub fn combine_no_lt(self: &mut JniRefMut<Self>, other: &mut JniRef<Self>) {
+        self.counter += other.counter;
     }
 
     pub fn increment_foo_x(&mut self, x: u32, y: u32, z: u32) -> u32 {
@@ -55,10 +65,10 @@ pub struct MainClass;
 #[jni_export]
 #[jni(package = "moe.lymia.nekojni.test")]
 impl MainClass {
-    pub fn main(env: JniEnv, array: JArray<String>) -> Result<()> {
+    pub fn main(env: JniEnv, _: JArray<String>) -> Result<()> {
         println!("Hello, world (from Rust)!");
         println!("Java home: {}", System::get_property(env, "java.home")?);
-        Ok(())
+        jni_bail!("oh no!")
     }
 }
 

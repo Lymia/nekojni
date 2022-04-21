@@ -57,6 +57,7 @@ pub struct ExportedClass {
     pub name: &'static str,
     pub super_class: Option<&'static str>,
     pub implements: &'static [&'static str],
+    pub source_file: &'static str,
 
     pub id_field_name: &'static str,
     pub late_init: &'static [&'static str],

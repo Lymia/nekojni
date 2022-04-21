@@ -65,6 +65,7 @@ impl<T: JavaConversionType> MethodReturn for Result<T> {
 }
 
 #[inline(never)]
+#[cold]
 fn get_panic_string(e: Box<dyn Any + Send + 'static>) -> String {
     if let Some(_) = e.downcast_ref::<String>() {
         match e.downcast::<String>() {
@@ -79,6 +80,7 @@ fn get_panic_string(e: Box<dyn Any + Send + 'static>) -> String {
 }
 
 #[inline(never)]
+#[cold]
 fn fail(e: Error) -> ! {
     eprintln!("Error throwing native exception: {e}");
     eprintln!("Aborting due to fatal error...");
@@ -86,6 +88,7 @@ fn fail(e: Error) -> ! {
 }
 
 #[inline(never)]
+#[cold]
 fn check_fail(r: Result<()>) {
     if let Err(e) = r {
         fail(e);
@@ -101,8 +104,11 @@ pub fn catch_panic<R>(func: impl FnOnce() -> R) -> Result<R> {
 
 /// The function that handles the return value of object methods, and prevents panics from crossing
 /// the FFI barrier.
-#[allow(deprecated)]
-pub fn catch_panic_jni<R: MethodReturn, F: FnOnce(JniEnv) -> R>(
+///
+/// This has the weird name it does to allow us to identify it in the stack trace (for purposes of
+/// passing a stack trace cleanly into Java code).
+#[inline(never)]
+pub fn __njni_entry_point<R: MethodReturn, F: FnOnce(JniEnv) -> R>(
     env: JNIEnv,
     func: F,
     exception_class: &str,

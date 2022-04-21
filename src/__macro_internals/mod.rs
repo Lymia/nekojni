@@ -4,12 +4,10 @@ mod registration;
 mod return_ty;
 
 pub use crate::{
-    internal::{
-        globals::set_default_exception_class,
-        panicking::{catch_panic_jni, MethodReturn},
-    },
+    internal::jni_entry::{MethodReturn, __njni_entry_point},
     java_class::{
-        exports, JavaClassImpl, JavaClassInfo, JavaModuleImpl, JavaModuleInfo, RustContents,
+        exports, JavaClassImpl, JavaClassInfo, JavaClassType, JavaModuleImpl, JavaModuleInfo,
+        RustContents,
     },
 };
 pub use extract_self_param::*;
@@ -17,7 +15,7 @@ pub use nekojni_macros::{java_name_to_jni, jni_export_internal};
 pub use nekojni_utils::{constcat_const, constcat_generic, CFlags, FFlags, MFlags};
 pub use once::OnceCache;
 pub use registration::*;
-pub use return_ty::ImportReturnTy;
+pub use return_ty::{ImportCtorReturnTy, ImportReturnTy};
 
 pub use enumset;
 pub use jni;

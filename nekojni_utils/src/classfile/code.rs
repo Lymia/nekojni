@@ -1,3 +1,5 @@
+#![allow(unused)] // TODO: Sort this out some day.
+
 use crate::{
     classfile::{attributes::Attribute, PoolId, PoolWriter},
     signatures::{MethodSig, Type},
@@ -53,7 +55,6 @@ impl Attribute for MethodWriter {
                 }
             }
 
-            println!("{instr:?} {cur_stack}");
             assert!(cur_stack <= i16::MAX as isize);
             assert!(cur_stack >= 0);
 
@@ -69,7 +70,6 @@ impl Attribute for MethodWriter {
         let mut code = Cursor::new(Vec::<u8>::new());
         cur_ip = 0;
         for instr in &self.instr {
-            println!("{cur_ip} {instr:?}");
             match instr {
                 Instruction::Branch(br, label) => {
                     let label_target = self.label_map.get(&label).expect("Could not find label.");

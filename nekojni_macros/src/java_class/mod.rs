@@ -235,6 +235,7 @@ fn jni_process_impl(
                         name: #class_name,
                         super_class: #extends,
                         implements: &[#(#implements_classes,)*],
+                        source_file: file!(),
 
                         id_field_name: "njni$$i",
                         late_init: &[],
@@ -298,12 +299,13 @@ fn jni_process_impl(
             impl #impl_ty {
                 #generated_impls
             }
-            impl<'env> #nekojni_internal::JavaClassImpl<'env> for #impl_ty {
-                const INIT_ID: usize = #cl_id;
+            impl #nekojni_internal::JavaClassType for #impl_ty {
                 const JNI_TYPE: &'static str = #class_name;
                 const JNI_TYPE_SIG: &'static str =
                     #nekojni_internal::constcat_const!("L", #class_name, ";");
-
+            }
+            impl<'env> #nekojni_internal::JavaClassImpl<'env> for #impl_ty {
+                const INIT_ID: usize = #cl_id;
                 #create_ref
             }
             impl<'env> #nekojni::objects::JavaClass<'env> for #impl_ty { }

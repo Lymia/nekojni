@@ -1,6 +1,8 @@
 use crate::{errors::*, jni_env::JniEnv};
 use jni::{objects::JValue, sys::*};
 
+// TODO: Make the implementations of this private.
+
 macro_rules! impl_borrowed_from_owned {
     ($env:lifetime) => {
         unsafe fn from_java_ref<R>(

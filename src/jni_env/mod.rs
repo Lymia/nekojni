@@ -93,7 +93,7 @@ fn jni_new_ref(env: JNIEnv) -> Result<Arc<JniEnvCacheData>> {
     }
 }
 extern "system" fn jni_shutdown(env: JNIEnv, class: jclass) {
-    crate::internal::panicking::catch_panic_jni(
+    crate::internal::jni_entry::__njni_entry_point(
         env,
         |env| {
             let offset = vm_offset(*env).expect("Could not find offset?");

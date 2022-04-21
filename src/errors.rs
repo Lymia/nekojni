@@ -54,6 +54,7 @@ impl ErrorType {
 
 impl Error {
     #[inline(never)]
+    #[cold]
     #[track_caller]
     fn raw_new(tp: ErrorType, request_backtrace: bool) -> Self {
         let backtrace = if tp.has_backtrace() || !request_backtrace {
@@ -71,6 +72,7 @@ impl Error {
 
     /// Creates a new `Error` with an internal error message.
     #[inline(never)]
+    #[cold]
     #[track_caller]
     pub fn new(msg: impl Into<Cow<'static, str>>) -> Self {
         Self::raw_new(ErrorType::Error(msg.into()), true)
@@ -81,6 +83,7 @@ impl Error {
     /// Unlike [`Error::new`], this does not record a backtrace, and will directly use the text
     /// as the cause of any generated exception.
     #[inline(never)]
+    #[cold]
     #[track_caller]
     pub fn message(msg: impl Into<Cow<'static, str>>) -> Self {
         Self::raw_new(ErrorType::Message(msg.into()), false)
@@ -88,6 +91,7 @@ impl Error {
 
     /// Creates a new `Error` from a Rust panic.
     #[inline(never)]
+    #[cold]
     #[track_caller]
     pub(crate) fn panicked(msg: impl Into<Cow<'static, str>>) -> Self {
         Self::raw_new(ErrorType::Panicking(msg.into()), false)
@@ -95,6 +99,7 @@ impl Error {
 
     /// Wraps any error in an `Error`.
     #[inline(never)]
+    #[cold]
     #[track_caller]
     pub fn wrap<T: ErrorTrait + 'static>(err: T) -> Self {
         Self::raw_new(ErrorType::Wrapped(Box::new(err)), true)
@@ -102,7 +107,7 @@ impl Error {
 
     /// Catches a panic and converts it to an `Error`.
     pub fn catch_panic<R>(func: impl FnOnce() -> R) -> Result<R> {
-        crate::internal::panicking::catch_panic(func)
+        crate::internal::jni_entry::catch_panic(func)
     }
 
     /// Emits an error into an [`JniEnv`]
@@ -119,6 +124,7 @@ impl Error {
     ///
     /// The class is given as an JNI internal name.
     #[inline(never)]
+    #[cold]
     pub fn set_exception_class(mut self, class: impl Into<Cow<'static, str>>) -> Self {
         self.0.override_except_class = Some(class.into());
         self
@@ -151,7 +157,9 @@ impl Display for Error {
     }
 }
 impl<T: ErrorTrait + 'static> From<T> for Error {
+    #[inline(never)]
     #[track_caller]
+    #[cold]
     fn from(t: T) -> Self {
         Error::wrap(t)
     }

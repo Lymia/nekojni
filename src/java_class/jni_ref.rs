@@ -42,7 +42,7 @@ enum InnerRef<T> {
 ///
 /// It holds the same lifetime parameters as a [`JniEnv`]. These should normally be elided as this
 /// should not often be used in contexts where there is much ambiguity.
-pub struct JniRef<'env, T: JavaClass<'env>, R: JniRefType = JniRefRead> {
+pub struct JniRef<'env, T, R: JniRefType = JniRefRead> {
     this: JObject<'env>,
     inner: InnerRef<T>,
     env: JniEnv<'env>,

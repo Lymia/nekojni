@@ -105,10 +105,7 @@ pub fn make_jar_data(
                     // Copy the binary itself
                     let binary_data = std::fs::read(&binary_meta.path)?;
                     let hash = Hasher::new().update(&binary_data).as_u64();
-                    data.add_resource(
-                        &format!("{resource_base}.{hash:016x}{os_ext}"),
-                        binary_data,
-                    );
+                    data.add_resource(&format!("{resource_base}.{hash:016x}{os_ext}"), binary_data);
 
                     // Generate a manifest for the binary
                     data.add_resource(
@@ -162,6 +159,7 @@ fn generate_class(data: &ExportedClass, class_data: &mut ClassData, init_class: 
     for class_name in data.implements {
         class.implements(class_name);
     }
+    class.source_file(data.source_file);
 
     for exports in data.exports {
         match exports {

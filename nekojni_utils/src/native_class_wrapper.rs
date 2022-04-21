@@ -34,6 +34,9 @@ impl NativeClassWrapper {
     pub fn implements(&mut self, implement: &str) {
         self.class.implements(implement);
     }
+    pub fn source_file(&mut self, source_file: &str) {
+        self.class.source_file(source_file);
+    }
 
     pub fn generate_init(&mut self, init_class: &str) {
         let method = self.class.method(MFlags::Static.into(), "<clinit>", "()V");

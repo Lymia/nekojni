@@ -1,2 +1,1 @@
-pub mod globals;
-pub mod panicking;
+pub mod jni_entry;

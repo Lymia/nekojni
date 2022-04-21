@@ -10,11 +10,12 @@ use jni::objects::JObject;
 /// A trait representing a Java class.
 pub trait JavaClass<'env>: JavaClassImpl<'env> {}
 
-pub trait JavaClassImpl<'env>: Sized + Send + Sync + 'static {
-    const INIT_ID: usize;
-
+pub trait JavaClassType {
     const JNI_TYPE: &'static str;
     const JNI_TYPE_SIG: &'static str;
+}
+pub trait JavaClassImpl<'env>: JavaClassType + Sized + Send + Sync + 'static {
+    const INIT_ID: usize;
 
     fn default_ptr() -> &'static Self;
 

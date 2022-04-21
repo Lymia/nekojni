@@ -10,7 +10,7 @@ use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as SynTokenStream};
 use quote::*;
 use std::fmt::{Debug, Display};
-use syn::{spanned::Spanned, *};
+use syn::{punctuated::Punctuated, spanned::Spanned, visit_mut::visit_type_mut, *};
 
 /// Creates an identifier with a format-like syntax.
 macro_rules! ident {
@@ -150,4 +150,44 @@ pub fn parse_class_name<'a>(name: &str) -> Result<ClassName> {
         Ok(v) => Ok(v),
         Err(e) => error(Span::call_site(), format!("Could not parse class name: {e:?}")),
     }
+}
+
+/// Returns the only lifetime in a method's generics, or return an error.
+pub fn check_only_lt(item: &ImplItemMethod) -> Result<Option<Lifetime>> {
+    if item.sig.generics.params.is_empty() {
+        Ok(None)
+    } else if item.sig.generics.params.len() == 1 {
+        let item = &item.sig.generics.params[0];
+        match item {
+            GenericParam::Lifetime(lt) => Ok(Some(lt.lifetime.clone())),
+            _ => error(item.span(), "JNI methods may only have lifetime parameters.")?,
+        }
+    } else {
+        error(
+            item.sig.generics.span(),
+            "JNI methods may only have up to a single lifetime parameter.",
+        )
+    }
+}
+
+pub fn elide_lifetimes(ty: &Type) -> Type {
+    let mut ty = ty.clone();
+    struct Visitor;
+    impl syn::visit_mut::VisitMut for Visitor {
+        fn visit_angle_bracketed_generic_arguments_mut(
+            &mut self,
+            i: &mut AngleBracketedGenericArguments,
+        ) {
+            let mut new_punctuated = Punctuated::new();
+            for pair in i.args.pairs() {
+                match pair.value() {
+                    GenericArgument::Lifetime(_) => {}
+                    _ => new_punctuated.push((*pair.value()).clone()),
+                }
+            }
+            i.args = new_punctuated;
+        }
+    }
+    visit_type_mut(&mut Visitor, &mut ty);
+    ty
 }

@@ -65,7 +65,7 @@ public final class NativeLibraryResourceLoader {
         accum += arch == ARCH_X86 ? "x86" :
                  arch == ARCH_AMD64 ? "x86_64" :
                  arch == ARCH_AARCH64 ? "aarch64" : null;
-        accum += os == OS_WINDOWS ? "-windows-msvc" :
+        accum += os == OS_WINDOWS ? "-pc-windows-msvc" :
                  os == OS_MACOS ? "-apple-darwin" :
                  os == OS_LINUX ? "-unknown-linux-gnu" : null;
         return accum;

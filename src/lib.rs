@@ -1,6 +1,6 @@
-#![feature(backtrace, downcast_unchecked)]
-#![feature(generic_const_exprs, const_trait_impl, const_slice_index)]
+#![allow(incomplete_features)]
 #![deny(unused_must_use)]
+#![feature(backtrace, downcast_unchecked, generic_const_exprs)]
 
 #[macro_use]
 mod errors;
@@ -20,6 +20,7 @@ pub use java_class::jni_ref::{JniRef, JniRefMut};
 pub use jni_env::JniEnv;
 
 /// The module containing the types used for conversions between Java and Rust types.
+// TODO: Make this private.
 pub mod conversions;
 
 /// The module containing types used to represent Java objects.
