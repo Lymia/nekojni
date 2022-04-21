@@ -191,3 +191,22 @@ pub fn elide_lifetimes(ty: &Type) -> Type {
     visit_type_mut(&mut Visitor, &mut ty);
     ty
 }
+
+pub fn rewrite_self(ty: &Type, impl_ty: &Type) -> Type {
+    let mut ty = ty.clone();
+    struct Visitor(Type);
+    impl syn::visit_mut::VisitMut for Visitor {
+        fn visit_type_mut(&mut self, ty: &mut Type) {
+            match ty {
+                Type::Path(path) => {
+                    if path.qself.is_none() && path.path.is_ident("Self") {
+                        *ty = self.0.clone();
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    visit_type_mut(&mut Visitor(impl_ty.clone()), &mut ty);
+    ty
+}

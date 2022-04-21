@@ -167,9 +167,7 @@ impl Error {
                         // print out the relevant symbols from the debugging information
                         let mut frame_any_symbols = false;
                         for symbol in frame.symbols() {
-                            if symbol.filename().is_none()
-                                && symbol.name().is_none()
-                            {
+                            if symbol.filename().is_none() && symbol.name().is_none() {
                                 continue;
                             }
 
@@ -207,10 +205,8 @@ impl Error {
                                 exception,
                                 "addRustTraceLine",
                                 "(Ljava/lang/String;)V",
-                                &[format!(
-                                    "\tat native {symbol_name}{file_loc}{from_loc}"
-                                )
-                                .to_java_value(env)],
+                                &[format!("\tat native {symbol_name}{file_loc}{from_loc}")
+                                    .to_java_value(env)],
                             )?;
                         }
 
@@ -220,11 +216,8 @@ impl Error {
                                 exception,
                                 "addRustTraceLine",
                                 "(Ljava/lang/String;)V",
-                                &[format!(
-                                    "\tat <unknown symbol> @ {:?}{from_loc}",
-                                    frame.ip()
-                                )
-                                .to_java_value(env)],
+                                &[format!("\tat <unknown symbol> @ {:?}{from_loc}", frame.ip())
+                                    .to_java_value(env)],
                             )?;
                         }
                     }

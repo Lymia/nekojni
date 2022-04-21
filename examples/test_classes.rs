@@ -22,7 +22,7 @@ impl TestClass {
     pub extern "Java" fn test_func_3(env: JniEnv, a: u32) {}
     pub extern "Java" fn test_func_4(self: &JniRef<Self>, a: u32, b: u32, c: u32) -> Result<u32> {}
     pub extern "Java" fn test_func_5(env: JniEnv, a: u32) {}
-    pub extern "Java" fn test_func_6(env: JniEnv, a: u32) -> u32 {}
+    pub extern "Java" fn test_func_6<'env>(env: JniEnv<'env>, a: &JniRef<'env, Self>) -> u32 {}
 
     pub fn combine<'env>(self: &mut JniRefMut<'env, Self>, other: &mut JniRef<'env, Self>) {
         self.counter += other.counter;
@@ -42,14 +42,14 @@ impl TestClass {
     }
 
     #[jni(open)]
-    pub fn increment_bar(self: &JniRef<Self>) -> u32 {
+    pub fn increment_bar<'env>(self: &JniRef<'env, Self>, other: &JniRef<'env, Self>) -> u32 {
         self.counter
     }
 
     pub fn test_fn(self: &JniRef<Self>) -> Result<u32> {
         println!("{}", self.test_func(1, 4, 8));
         println!("{}", System::get_property(self.env(), "java.home")?);
-        Ok(self.increment_bar())
+        Ok(self.increment_bar(self))
     }
 }
 

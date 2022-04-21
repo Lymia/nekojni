@@ -9,7 +9,7 @@ use quote::quote;
 use syn::{parse2, spanned::Spanned, ImplItem, ItemImpl, Type};
 
 pub(crate) struct JavaClassCtx {
-    self_ty: TokenStream,
+    self_ty: Type,
 
     class_name: String,
     settings: MacroArgs,
@@ -144,7 +144,7 @@ fn jni_process_impl(
     // Build the context.
     let impl_ty = &impl_block.self_ty;
     let mut components = JavaClassCtx {
-        self_ty: quote! { #impl_ty },
+        self_ty: (**impl_ty).clone(),
         class_name: class_name.clone(),
         settings: args,
         sym_uid: 0,
