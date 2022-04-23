@@ -1,3 +1,4 @@
+#![deny(unused_must_use, unused_imports)]
 #![feature(arbitrary_self_types)]
 
 use nekojni::{objects::JArray, *};
@@ -17,12 +18,24 @@ impl TestClass {
         c: u64,
     ) -> Result<JniRef<'env, Self>> {}*/
 
-    pub extern "Java" fn test_func(self: &JniRef<Self>, a: u32, b: u32, c: u64) -> u32 {}
-    pub extern "Java" fn test_func_2(self: &JniRef<Self>, a: u32) {}
-    pub extern "Java" fn test_func_3(env: JniEnv, a: u32) {}
-    pub extern "Java" fn test_func_4(self: &JniRef<Self>, a: u32, b: u32, c: u32) -> Result<u32> {}
-    pub extern "Java" fn test_func_5(env: JniEnv, a: u32) {}
-    pub extern "Java" fn test_func_6<'env>(env: JniEnv<'env>, a: &JniRef<'env, Self>) -> u32 {}
+    pub extern "Java" fn test_func(self: &JniRef<Self>, a: u32, b: u32, c: u64) -> u32 {
+        unreachable!()
+    }
+    pub extern "Java" fn test_func_2(self: &JniRef<Self>, a: u32) {
+        unreachable!()
+    }
+    pub extern "Java" fn test_func_3(env: JniEnv, a: u32) {
+        unreachable!()
+    }
+    pub extern "Java" fn test_func_4(self: &JniRef<Self>, a: u32, b: u32, c: u32) -> Result<u32> {
+        unreachable!()
+    }
+    pub extern "Java" fn test_func_5(env: JniEnv, a: u32) {
+        unreachable!()
+    }
+    pub extern "Java" fn test_func_6<'env>(env: JniEnv<'env>, a: &JniRef<'env, Self>) -> u32 {
+        unreachable!()
+    }
 
     pub fn combine<'env>(self: &mut JniRefMut<'env, Self>, other: &mut JniRef<'env, Self>) {
         self.counter += other.counter;
@@ -31,11 +44,13 @@ impl TestClass {
         self.counter += other.counter;
     }
 
+    #[jni(export_direct)]
     pub fn increment_foo_x(&mut self, x: u32, y: u32, z: u32) -> u32 {
         self.counter += x + y * z;
         self.counter
     }
 
+    #[jni(export_direct)]
     pub fn increment_foo_m(self: &mut JniRefMut<Self>, x: u32, y: &u32, z: &mut u32) -> u32 {
         self.counter += x + (*y) * (*z);
         self.counter
@@ -57,17 +72,41 @@ pub struct System;
 #[jni_import]
 #[jni(package = "java.lang")]
 impl System {
-    pub extern "Java" fn get_property(env: JniEnv, prop: &str) -> Result<String> {}
+    pub extern "Java" fn get_property(env: JniEnv, prop: &str) -> Result<String> {
+        unreachable!()
+    }
 }
 
 pub struct MainClass;
 
 #[jni_export]
-#[jni(package = "moe.lymia.nekojni.test")]
+#[jni(package = "moe.lymia.nekojni.test", extends = "java.lang.Thread")]
 impl MainClass {
+    #[jni(constructor)]
+    pub fn new(_: JniEnv) -> Self {
+        println!("[instance constructor]");
+        MainClass
+    }
+
+    #[jni(init)]
+    pub fn static_init(env: JniEnv) {
+        println!("[static initializer]");
+    }
+
+    #[jni(init)]
+    pub fn instance_init(self: &JniRef<Self>) {
+        println!("[instance initializer]");
+    }
+
+    #[jni(open)] // `open` makes this call out to this through Java
+    pub fn instance_function(self: &JniRef<Self>) -> Result<()> {
+        println!("Hello, world!");
+        println!("Java home: {}", System::get_property(self.env(), "java.home")?);
+        Ok(())
+    }
+
     pub fn main(env: JniEnv, _: JArray<String>) -> Result<()> {
-        println!("Hello, world (from Rust)!");
-        println!("Java home: {}", System::get_property(env, "java.home")?);
+        Self::new(env).instance_function()?;
         jni_bail!("oh no!")
     }
 }

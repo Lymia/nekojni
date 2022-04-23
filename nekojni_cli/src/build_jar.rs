@@ -1,7 +1,7 @@
 use crate::native_loader::{EntryPointArch, EntryPointPlatform, ParsedBinary};
 use nekojni::{
     __macro_internals::{
-        exports::{jni_native_name, ExportedClass, ExportedItem},
+        exported_class::{jni_native_name, ExportedClass, ExportedItem},
         MARKER_STR,
     },
     *,
@@ -128,10 +128,8 @@ pub fn make_jar_data(
             data.add_resource(
                 "META-INF/MANIFEST.MF",
                 format!(
-                    "\
-                        Manifest-Version: 1.0\n\
-                        Created-By: 17.0.2 (GraalVM Community)\n\
-                    "
+                    "Manifest-Version: 1.0\n\
+                     Created-By: 17.0.2 (GraalVM Community)\n"
                 )
                 .into_bytes(),
             );
@@ -155,11 +153,12 @@ fn generate_class(data: &ExportedClass, class_data: &mut ClassData, init_class: 
         },
         data.id_field_name,
     );
-    class.generate_init(init_class);
+    class.generate_init(init_class, &data.static_init);
     for class_name in data.implements {
         class.implements(class_name);
     }
     class.source_file(data.source_file);
+    class.dispose_funcs(&data.free_fn, true);
 
     for exports in data.exports {
         match exports {
@@ -172,11 +171,11 @@ fn generate_class(data: &ExportedClass, class_data: &mut ClassData, init_class: 
             } => {
                 class.export_constructor(
                     *flags,
-                    &signature,
-                    &jni_native_name(native_name, true),
-                    &native_signature,
-                    &super_signature,
-                    data.late_init,
+                    signature,
+                    native_name,
+                    native_signature,
+                    super_signature,
+                    data.instance_init,
                 );
             }
             ExportedItem::NativeMethodWrapper {
@@ -191,7 +190,7 @@ fn generate_class(data: &ExportedClass, class_data: &mut ClassData, init_class: 
                     *flags,
                     name,
                     signature,
-                    &jni_native_name(native_name, flags.contains(MFlags::Static)),
+                    &jni_native_name(native_name, flags.contains(MFlags::Static), false),
                     native_signature,
                     *has_id_param,
                 );
@@ -202,11 +201,20 @@ fn generate_class(data: &ExportedClass, class_data: &mut ClassData, init_class: 
         }
     }
     for method in data.native_methods {
-        class.export_native(
-            &jni_native_name(method.name, method.is_static),
-            &method.sig,
-            method.is_static,
-        );
+        if method.export_direct {
+            class.export_native_direct(
+                method.export_direct_flags,
+                &method.name,
+                &method.sig,
+                method.is_static,
+            );
+        } else {
+            class.export_native(
+                &jni_native_name(method.name, method.is_static, false),
+                &method.sig,
+                method.is_static,
+            );
+        }
     }
 
     class_data.add_exported_class(class);

@@ -1,7 +1,7 @@
 use crate::{
     classfile::{
         utils::{push_param, return_param},
-        ClassWriter, MethodWriter,
+        ClassWriter,
     },
     signatures::{BasicType, ClassName, MethodSig, Type},
     CFlags, ClassData, FFlags, MFlags,
@@ -22,7 +22,11 @@ impl NativeClassWrapper {
         let mut class = ClassWriter::new(access, name);
 
         class.extends(extends);
-        class.field(FFlags::Private | FFlags::Synthetic | FFlags::Final, id_param, "I");
+        class.field(
+            FFlags::Private | FFlags::Synthetic | FFlags::Final | FFlags::Transient,
+            id_param,
+            "I",
+        );
 
         NativeClassWrapper {
             name: name.to_string(),
@@ -40,10 +44,18 @@ impl NativeClassWrapper {
         self.class.source_file(source_file);
     }
 
-    pub fn generate_init(&mut self, init_class: &str) {
+    pub fn generate_init(&mut self, init_class: &str, static_init: &[&str]) {
         let method = self.class.method(MFlags::Static.into(), "<clinit>", "()V");
         let mut code = method.code();
-        code.invokestatic(init_class, "init", "()V").vreturn();
+        code.invokestatic(init_class, "init", "()V");
+
+        // call all instance initializer functions
+        for func in static_init {
+            code.invokestatic(&self.name, func, "()V");
+        }
+
+        // return
+        code.vreturn();
     }
 
     pub fn export_constructor(
@@ -53,7 +65,7 @@ impl NativeClassWrapper {
         native_name: &str,
         native_sig_str: &str,
         super_sig_str: &str,
-        late_init: &[&'static str],
+        instance_init: &[&'static str],
     ) {
         self.constructor_generated = true;
 
@@ -93,10 +105,12 @@ impl NativeClassWrapper {
         match intermediate_name {
             None => {
                 // just call the superclass' default constructor
-                code.aload(0)
-                    .invokestatic(&self.extends, "<init>", "()V")
-                    .putfield(&self.name, &self.id_param, "I")
-                    .vreturn();
+                code.istore(var_native_ret)
+                    .aload(0)
+                    .invokespecial(&self.extends, "<init>", "()V")
+                    .aload(0)
+                    .iload(var_native_ret)
+                    .putfield(&self.name, &self.id_param, "I");
             }
             Some(support_name) => {
                 // generate a supporting class
@@ -172,8 +186,8 @@ impl NativeClassWrapper {
             }
         }
 
-        // call all late init functions
-        for func in late_init {
+        // call all instance initializer functions
+        for func in instance_init {
             code.aload(0).invokevirtual(&self.name, func, "()V");
         }
 
@@ -191,6 +205,16 @@ impl NativeClassWrapper {
             access |= MFlags::Static;
         }
         self.class.method(access, name, sig);
+    }
+    pub fn export_native_direct(
+        &mut self,
+        access: EnumSet<MFlags>,
+        name: &str,
+        sig: &str,
+        is_static: bool,
+    ) {
+        assert_eq!(access.contains(MFlags::Static), is_static);
+        self.class.method(access | MFlags::Native, name, sig);
     }
 
     pub fn export_native_wrapper(
@@ -245,10 +269,51 @@ impl NativeClassWrapper {
         return_param(&mut code, &sig.ret_ty);
     }
 
+    pub fn dispose_funcs(&mut self, free_fn: &str, is_auto_closable: bool) {
+        self.class.field(
+            FFlags::Private | FFlags::Synthetic | FFlags::Volatile | FFlags::Transient,
+            "njni$$triedClose",
+            "Z",
+        );
+        {
+            let mut method = self.class.method(
+                MFlags::Public | MFlags::Final | MFlags::Synchronized,
+                "finalize",
+                "()V",
+            );
+            let mut code = method.code();
+            code.aload(0)
+                .dup()
+                .getfield(&self.name, &self.id_param, "I")
+                .aload(0)
+                .getfield(&self.name, "njni$$triedClose", "Z")
+                .aload(0)
+                .iconst(1)
+                .putfield(&self.name, "njni$$triedClose", "Z")
+                .invokevirtual(&self.name, free_fn, "(IZ)V")
+                .vreturn();
+        }
+
+        if is_auto_closable {
+            self.class.implements("java/lang/AutoCloseable");
+            {
+                let mut method = self.class.method(
+                    MFlags::Public | MFlags::Final | MFlags::Synchronized,
+                    "close",
+                    "()V",
+                );
+                let mut code = method.code();
+                code.aload(0)
+                    .invokestatic(&self.name, "finalize", "()V")
+                    .vreturn();
+            }
+        }
+    }
+
     pub(crate) fn add_to_jar(mut self, data: &mut ClassData) {
-        // generate an empty constructor if there are none
+        // generate an empty private constructor if there are none
         if !self.constructor_generated {
-            let method = self.class.method(MFlags::Public.into(), "<init>", "()V");
+            let method = self.class.method(MFlags::Private.into(), "<init>", "()V");
             let mut code = method.code();
             code.aload(0)
                 .invokespecial(&self.extends, "<init>", "()V")

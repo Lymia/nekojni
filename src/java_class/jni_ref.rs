@@ -3,7 +3,7 @@
 use crate::{errors::*, java_class::*};
 use jni::objects::{JObject, JValue};
 use parking_lot::{
-    lock_api::{ArcRwLockUpgradableReadGuard, ArcRwLockWriteGuard},
+    lock_api::{ArcRwLockReadGuard, ArcRwLockWriteGuard},
     RawRwLock,
 };
 use std::{
@@ -34,7 +34,7 @@ impl JniRefType for JniRefWrite {}
 
 enum InnerRef<T> {
     Default,
-    Read(ArcRwLockUpgradableReadGuard<RawRwLock, T>),
+    Read(ArcRwLockReadGuard<RawRwLock, T>),
     Write(ArcRwLockWriteGuard<RawRwLock, T>),
 }
 
@@ -71,7 +71,7 @@ impl<'env, T: JavaClass<'env>> JniRef<'env, T> {
                     panic!("internal error: ugprading `JniRef` with no Rust contents.")
                 }
                 InnerRef::Read(read) => {
-                    InnerRef::Write(ArcRwLockUpgradableReadGuard::upgrade(read))
+                    todo!()
                 }
                 InnerRef::Write(write) => InnerRef::Write(write),
             },
@@ -110,7 +110,7 @@ impl<'a, 'env: 'a, T: JavaClass<'env>> AsRef<JniEnv<'env>> for &'a JniRef<'env, 
 /// Creates a new [`JniRef`] from a JNI environment and a java object containing an ID.
 pub fn new_rust<'env, T: RustContents<'env>>(
     env: JniEnv<'env>,
-    this_class: &str,
+    this_class: &str, // TODO
     this: JObject<'env>,
     id: Option<u32>,
 ) -> Result<JniRef<'env, T>> {
@@ -123,7 +123,7 @@ pub fn new_rust<'env, T: RustContents<'env>>(
     };
     let manager = env.get_id_manager::<T>();
     let lock = manager.get(id)?;
-    let inner = InnerRef::Read(lock.upgradable_read_arc());
+    let inner = InnerRef::Read(lock.read_arc_recursive());
     Ok(JniRef { this, inner, env, phantom: PhantomData })
 }
 

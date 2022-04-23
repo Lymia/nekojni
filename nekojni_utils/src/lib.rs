@@ -1,4 +1,4 @@
-#![deny(unused_must_use)]
+#![deny(unused_must_use, unused_imports)]
 
 extern crate core;
 

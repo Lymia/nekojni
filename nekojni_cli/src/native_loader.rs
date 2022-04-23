@@ -65,6 +65,10 @@ impl ParsedBinary {
                     let info = func();
 
                     jni_assert!(
+                        info.magic == MAGIC_NUMBER,
+                        "Native library has a bad magic number. Something is very wrong.",
+                    );
+                    jni_assert!(
                         info.major_version == MAJOR_VERSION,
                         "Native library is not compatible: Wrong major version 0x{:08x}.",
                         info.major_version,

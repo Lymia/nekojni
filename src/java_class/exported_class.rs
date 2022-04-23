@@ -42,12 +42,19 @@ pub struct RustNativeMethod {
     pub sig: &'static str,
     pub fn_ptr: *mut c_void,
     pub is_static: bool,
+
+    pub export_direct_flags: EnumSet<MFlags>,
+    pub export_direct: bool,
 }
 unsafe impl Send for RustNativeMethod {}
 unsafe impl Sync for RustNativeMethod {}
 
-pub fn jni_native_name(name: &str, is_static: bool) -> String {
-    format!("njni$${}${}", name, if is_static { "s" } else { "m" })
+pub fn jni_native_name(name: &str, export_direct: bool, is_static: bool) -> String {
+    if export_direct || name.starts_with("njni$$") {
+        name.to_string()
+    } else {
+        format!("{}$native${}", name, if is_static { "s" } else { "m" })
+    }
 }
 
 /// A trait representing a Java class that may be exported via codegen.
@@ -60,7 +67,9 @@ pub struct ExportedClass {
     pub source_file: &'static str,
 
     pub id_field_name: &'static str,
-    pub late_init: &'static [&'static str],
+    pub static_init: &'static [&'static str],
+    pub instance_init: &'static [&'static str],
+    pub free_fn: &'static str,
 
     pub exports: &'static [ExportedItem],
     pub native_methods: &'static [RustNativeMethod],
@@ -70,7 +79,11 @@ impl ExportedClass {
         let mut methods = Vec::new();
         for method in self.native_methods {
             methods.push(NativeMethod {
-                name: JNIString::from(jni_native_name(&method.name, method.is_static)),
+                name: JNIString::from(jni_native_name(
+                    &method.name,
+                    method.export_direct,
+                    method.is_static,
+                )),
                 sig: JNIString::from(method.sig),
                 fn_ptr: method.fn_ptr,
             });

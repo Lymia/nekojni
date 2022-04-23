@@ -30,9 +30,9 @@ impl<'env, T: JavaConversionOwned<'env>> ImportReturnTy<'env> for T {
     }
     const JNI_TYPE: &'static str = T::JNI_TYPE;
 }
-impl<'env, T: JavaConversionOwned<'env>> ImportReturnTy<'env> for Result<T> {
-    fn from_return_ty(_: &str, env: JniEnv<'env>, value: Result<JValue<'env>>) -> Self {
-        T::from_java_value(value?, env)
+impl<'env, T: ImportReturnTy<'env>> ImportReturnTy<'env> for Result<T> {
+    fn from_return_ty(from: &str, env: JniEnv<'env>, value: Result<JValue<'env>>) -> Self {
+        Ok(T::from_return_ty(from, env, Ok(value?)))
     }
     const JNI_TYPE: &'static str = T::JNI_TYPE;
 }

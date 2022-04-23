@@ -1,5 +1,5 @@
 use super::*;
-use crate::{java_class::JavaClass, objects::JArray, JniRef};
+use crate::objects::JArray;
 use jni::objects::JObject;
 use nekojni_utils::constcat_generic;
 

@@ -1,15 +1,9 @@
 #![allow(incomplete_features)]
-#![deny(unused_must_use)]
+#![deny(unused_must_use, unused_imports)]
 #![feature(downcast_unchecked, generic_const_exprs, label_break_value)]
 
 #[macro_use]
 mod errors;
-
-/// The module for nekojni's internal types. This is in no way public API!!
-#[deprecated = "This module is for internal use by nekojni's macros, and should not be used by \
-                external code. There are no API guarantees!"]
-#[doc(hidden)]
-pub mod __macro_internals;
 
 mod internal;
 mod java_class;
@@ -22,6 +16,12 @@ pub use jni_env::JniEnv;
 /// The module containing the types used for conversions between Java and Rust types.
 // TODO: Make this private.
 pub mod conversions;
+
+/// The module for nekojni's internal types. This is in no way public API!!
+#[deprecated = "This module is for internal use by nekojni's macros, and should not be used by \
+                external code. There are no API guarantees!"]
+#[doc(hidden)]
+pub mod __macro_internals;
 
 /// The module containing types used to represent Java objects.
 pub mod objects {
@@ -132,6 +132,7 @@ macro_rules! jni_module {
                         static CACHE: OnceCache<Vec<&JavaClassInfo>> = OnceCache::new();
                         let classes = &CACHE.init(get_info_raw);
                         JavaModuleInfo {
+                            magic: MAGIC_NUMBER,
                             major_version: MAJOR_VERSION,
                             marker_len: MARKER_STR.len(),
                             marker_ptr: MARKER_STR.as_ptr(),

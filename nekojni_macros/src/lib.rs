@@ -1,3 +1,5 @@
+#![deny(unused_must_use, unused_imports)]
+
 #[macro_use]
 mod utils;
 #[macro_use]
@@ -7,35 +9,11 @@ mod helper_macros;
 mod java_class;
 
 use proc_macro::TokenStream;
-use proc_macro2::TokenStream as SynTokenStream;
-use proc_macro_crate::FoundCrate;
-use quote::quote;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn chain_next() -> usize {
     static CHAIN_COUNT: AtomicUsize = AtomicUsize::new(1);
     CHAIN_COUNT.fetch_add(1, Ordering::SeqCst)
-}
-
-struct MacroCtx {
-    nekojni: SynTokenStream,
-    internal: SynTokenStream,
-    std: SynTokenStream,
-    jni: SynTokenStream,
-}
-impl MacroCtx {
-    fn new() -> errors::Result<Self> {
-        let crate_name = match proc_macro_crate::crate_name("nekojni") {
-            Ok(FoundCrate::Name(v)) => ident!("{}", v),
-            _ => ident!("nekojni"), // This is likely an example.
-        };
-        Ok(MacroCtx {
-            nekojni: quote!( #crate_name ),
-            internal: quote!( #crate_name::__macro_internals ),
-            std: quote!( #crate_name::__macro_internals::std ),
-            jni: quote!( #crate_name::__macro_internals::jni ),
-        })
-    }
 }
 
 #[proc_macro_attribute]

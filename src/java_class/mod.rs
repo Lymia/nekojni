@@ -1,8 +1,8 @@
-pub mod exports;
+pub mod exported_class;
 pub mod jni_ref;
 pub mod object_id;
 
-use crate::{errors::*, java_class::exports::ExportedClass, JniEnv};
+use crate::{errors::*, java_class::exported_class::ExportedClass, JniEnv};
 use jni::objects::JObject;
 
 // TODO: Generate native-image configurations.
@@ -46,6 +46,7 @@ pub struct JavaClassInfo {
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct JavaModuleInfo {
+    pub magic: u32,
     pub major_version: usize,
     pub marker_len: usize,
     pub marker_ptr: *const u8,

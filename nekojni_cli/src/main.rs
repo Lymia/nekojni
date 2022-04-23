@@ -1,3 +1,4 @@
+#![deny(unused_must_use, unused_imports)]
 #![allow(deprecated)]
 
 mod build_jar;

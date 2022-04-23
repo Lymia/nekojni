@@ -1,20 +1,46 @@
 //! A module containing helper functions used throughout the macros implementation.
 
-use crate::{
-    errors::{Error, Result},
-    MacroCtx,
-};
+use crate::errors::{Error, Result};
 use enumset::{EnumSet, EnumSetType};
 use nekojni_utils::signatures::ClassName;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as SynTokenStream};
+use proc_macro_crate::FoundCrate;
 use quote::*;
 use std::fmt::{Debug, Display};
-use syn::{punctuated::Punctuated, spanned::Spanned, visit_mut::visit_type_mut, *};
+use syn::{
+    punctuated::Punctuated,
+    spanned::Spanned,
+    visit_mut::{
+        visit_angle_bracketed_generic_arguments_mut, visit_type_mut, visit_type_path_mut, VisitMut,
+    },
+    *,
+};
 
 /// Creates an identifier with a format-like syntax.
 macro_rules! ident {
     ($($tts:tt)*) => { syn::Ident::new(&format!($($tts)*), ::proc_macro2::Span::call_site()) }
+}
+
+pub struct MacroCtx {
+    pub nekojni: SynTokenStream,
+    pub internal: SynTokenStream,
+    pub std: SynTokenStream,
+    pub jni: SynTokenStream,
+}
+impl MacroCtx {
+    pub fn new() -> Result<Self> {
+        let crate_name = match proc_macro_crate::crate_name("nekojni") {
+            Ok(FoundCrate::Name(v)) => ident!("{}", v),
+            _ => ident!("nekojni"), // This is likely an example.
+        };
+        Ok(MacroCtx {
+            nekojni: quote!( #crate_name ),
+            internal: quote!( #crate_name::__macro_internals ),
+            std: quote!( #crate_name::__macro_internals::std ),
+            jni: quote!( #crate_name::__macro_internals::jni ),
+        })
+    }
 }
 
 /// Emits a `syn` based compile error.
@@ -170,6 +196,7 @@ pub fn check_only_lt(item: &ImplItemMethod) -> Result<Option<Lifetime>> {
     }
 }
 
+/// Removes lifetime parameters from a generic type
 pub fn elide_lifetimes(ty: &Type) -> Type {
     let mut ty = ty.clone();
     struct Visitor;
@@ -186,27 +213,34 @@ pub fn elide_lifetimes(ty: &Type) -> Type {
                 }
             }
             i.args = new_punctuated;
+            visit_angle_bracketed_generic_arguments_mut(self, i);
         }
     }
     visit_type_mut(&mut Visitor, &mut ty);
     ty
 }
 
+/// Rewrite `Self` to be a specific type.
 pub fn rewrite_self(ty: &Type, impl_ty: &Type) -> Type {
     let mut ty = ty.clone();
     struct Visitor(Type);
-    impl syn::visit_mut::VisitMut for Visitor {
+    impl VisitMut for Visitor {
         fn visit_type_mut(&mut self, ty: &mut Type) {
             match ty {
                 Type::Path(path) => {
                     if path.qself.is_none() && path.path.is_ident("Self") {
                         *ty = self.0.clone();
+                    } else {
+                        visit_type_path_mut(self, path);
                     }
                 }
-                _ => {}
+                _ => visit_type_mut(self, ty),
             }
         }
     }
-    visit_type_mut(&mut Visitor(impl_ty.clone()), &mut ty);
+
+    let mut visitor = Visitor(impl_ty.clone());
+    visitor.visit_type_mut(&mut ty);
+    visit_type_mut(&mut visitor, &mut ty);
     ty
 }

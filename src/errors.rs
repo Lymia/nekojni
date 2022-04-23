@@ -11,7 +11,8 @@ use thiserror::Error;
 // internal reexports
 pub use std::{error::Error as ErrorTrait, result::Result as StdResult};
 
-// TODO: Extract the internal Java exception from Java errors, if at all possible.
+// TODO: Extract the internal Java exception from Java errors.
+// TODO: Extract panic information into the Java exceptions.
 
 /// The error type used for `nekojni`.
 ///
@@ -110,6 +111,12 @@ impl Error {
     /// Emits an error into an [`JniEnv`]
     #[inline(never)]
     pub fn emit_error(&self, env: JniEnv, exception_class: &str) -> Result<()> {
+        // TODO: Temporary hack
+        if env.exception_check()? {
+            env.exception_describe()?;
+            env.exception_clear()?;
+        }
+
         let class = match &self.0.override_except_class {
             Some(x) => x,
             None => exception_class,
@@ -117,7 +124,7 @@ impl Error {
         let exception =
             env.new_object(class, "(Ljava/lang/String;)V", &[self.to_string().to_java_value(env)])?;
         'register_exc: {
-            if exception_class == class {
+            if exception_class == class && exception_class != "java/lang/RuntimeException" {
                 if let Some(backtrace) = self.backtrace() {
                     let mut backtrace = backtrace.clone();
                     backtrace.resolve();
@@ -264,6 +271,7 @@ impl Display for Error {
 }
 impl<T: ErrorTrait + 'static> From<T> for Error {
     #[inline(always)]
+    #[track_caller]
     fn from(t: T) -> Self {
         Error::wrap(t)
     }
