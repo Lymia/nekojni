@@ -53,7 +53,7 @@ impl JavaClassCtx {
         let ident = format!(
             "{}/NJni$${}${prefix}${}",
             self.package_name,
-            &self.class_name[self.package_name.len()..],
+            &self.class_name[self.package_name.len() + 1..],
             self.sym_uid
         );
         self.sym_uid += 1;

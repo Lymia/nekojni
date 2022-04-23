@@ -83,9 +83,9 @@ pub struct MainClass;
 #[jni(package = "moe.lymia.nekojni.test", extends = "java.lang.Thread")]
 impl MainClass {
     #[jni(constructor)]
-    pub fn new(_: JniEnv) -> Self {
+    pub fn new(_: JniEnv) -> (Self, String) {
         println!("[instance constructor]");
-        MainClass
+        (MainClass, format!("test thread"))
     }
 
     #[jni(init)]
@@ -105,9 +105,18 @@ impl MainClass {
         Ok(())
     }
 
+    pub fn run(self: &JniRef<Self>) -> Result<()> {
+        println!("[thread run]");
+        self.instance_function()?;
+        jni_bail!("oh no! (run)")
+    }
+
+    // import from java.lang.Thread
+    pub extern "Java" fn start(self: &JniRef<Self>) -> Result<()> {}
+
     pub fn main(env: JniEnv, _: JArray<String>) -> Result<()> {
-        Self::new(env).instance_function()?;
-        jni_bail!("oh no!")
+        Self::new(env).start()?;
+        jni_bail!("oh no! (main)")
     }
 }
 

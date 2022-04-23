@@ -113,6 +113,14 @@ impl NativeClassWrapper {
                     .putfield(&self.name, &self.id_param, "I");
             }
             Some(support_name) => {
+                // create the parameters of the supporting class constructor
+                let mut vec = Vec::new();
+                vec.push(Type::Int);
+                for param in super_sig.params.as_slice() {
+                    vec.push(param.clone());
+                }
+                let support_ctor_sig = MethodSig::new(Type::Void, vec).display_jni().to_string();
+
                 // generate a supporting class
                 {
                     let mut supporting =
@@ -120,32 +128,29 @@ impl NativeClassWrapper {
 
                     // creating a constructor
                     {
-                        // create the parameters of the constructor
-                        let mut vec = Vec::new();
-                        vec.push(Type::Int);
-                        for param in super_sig.params.as_slice() {
-                            vec.push(param.clone());
-                        }
-
-                        let mut method =
-                            supporting.method(MFlags::Synthetic.into(), "<init>", "()V");
+                        // create the initalizer method itself
+                        let mut method = supporting.method(
+                            MFlags::Synthetic.into(),
+                            "<init>",
+                            &support_ctor_sig,
+                        );
                         let mut code = method.code();
 
                         // write the id field
                         code.aload(0)
-                            .invokestatic("java/lang/Object", "<init>", "()V")
+                            .invokespecial("java/lang/Object", "<init>", "()V")
+                            .aload(0)
                             .iload(1)
                             .putfield(&support_name, "id", "I");
 
                         // write the rest of the parameters
-                        let mut id = 0;
                         let mut param_id = 2;
-                        for param in sig.params.as_slice() {
-                            let field_name = format!("param_{}", param_id);
+                        for (id, param) in super_sig.params.as_slice().iter().enumerate() {
+                            let field_name = format!("param_{}", id);
                             let param_ty = param.display_jni().to_string();
+                            code.aload(0);
                             param_id += push_param(&mut code, param_id, param);
                             code.putfield(&support_name, &field_name, &param_ty);
-                            id += 1;
                         }
 
                         code.vreturn();
@@ -156,8 +161,8 @@ impl NativeClassWrapper {
 
                     // write the rest of the parameters in the supporting class
                     let mut id = 0;
-                    for param in sig.params.as_slice() {
-                        let field_name = format!("param_{}", param_id);
+                    for param in super_sig.params.as_slice() {
+                        let field_name = format!("param_{}", id);
                         let param_ty = param.display_jni().to_string();
                         supporting.field(FFlags::Final | FFlags::Synthetic, &field_name, &param_ty);
                         id += 1;
@@ -170,19 +175,17 @@ impl NativeClassWrapper {
 
                 // load the parameters from the support class and call the super constructor
                 code.astore(var_native_ret).aload(0);
-                let mut id = 0;
-                for param in native_sig.params.as_slice() {
-                    let field_name = format!("param_{}", param_id);
+                for (id, param) in super_sig.params.as_slice().iter().enumerate() {
+                    let field_name = format!("param_{}", id);
                     let param_ty = param.display_jni().to_string();
                     code.aload(var_native_ret)
                         .getfield(&support_name, &field_name, &param_ty);
-                    id += 1;
                 }
-                code.invokespecial(&self.extends, "<init>", native_sig_str)
+                code.invokespecial(&self.extends, "<init>", super_sig_str)
                     .aload(0)
                     .aload(var_native_ret)
                     .getfield(&support_name, "id", "I")
-                    .putfield(&self.name, "id", "I");
+                    .putfield(&self.name, &self.id_param, "I");
             }
         }
 

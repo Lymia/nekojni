@@ -131,7 +131,7 @@ impl ClassWriter {
             attributes: Default::default(),
             code_written: false,
             arg_stack_size: {
-                let mut count = 0;
+                let mut count = if access.contains(MFlags::Static) { 0 } else { 1 };
                 for param in MethodSig::parse_jni(ty).unwrap().params {
                     count += utils::type_stack_size(&param);
                 }

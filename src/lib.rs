@@ -18,8 +18,9 @@ pub use jni_env::JniEnv;
 pub mod conversions;
 
 /// The module for nekojni's internal types. This is in no way public API!!
-#[deprecated = "This module is for internal use by nekojni's macros, and should not be used by \
-                external code. There are no API guarantees!"]
+#[deprecated = "This module is for internal use by nekojni's macros. There are no API guarantees, \
+                and using any types from this module may cause **UNDEFINED BEHAVIOR** in safe \
+                code!"]
 #[doc(hidden)]
 pub mod __macro_internals;
 

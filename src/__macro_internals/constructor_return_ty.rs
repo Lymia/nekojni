@@ -1,3 +1,5 @@
+// TODO: See if there's a way to make this work without making it wildly unsound.
+
 use crate::{
     conversions::{JavaConversion, JavaConversionType},
     errors::*,
@@ -16,22 +18,22 @@ pub trait SyntheticTyType {
     const CLASS_NAME: &'static str;
 }
 
-pub struct SyntheticTy<'env, T: SyntheticTyType>(JObject<'env>, PhantomData<T>);
-impl<'env, T: SyntheticTyType> SyntheticTy<'env, T> {
-    pub fn new(this: JObject<'env>) -> Self {
-        SyntheticTy(this, PhantomData)
+pub struct SyntheticTy<T: SyntheticTyType>(jobject, PhantomData<T>);
+impl<T: SyntheticTyType> SyntheticTy<T> {
+    pub unsafe fn new(this: JObject) -> Self {
+        SyntheticTy(this.into_inner(), PhantomData)
     }
 }
-impl<'env, T: SyntheticTyType> JavaConversionType for SyntheticTy<'env, T> {
+impl<'env, T: SyntheticTyType> JavaConversionType for SyntheticTy<T> {
     type JavaType = jobject;
     const JNI_TYPE: &'static str = constcat_generic!("L", T::CLASS_NAME, ";");
 }
-unsafe impl<'env, T: SyntheticTyType> JavaConversion<'env> for SyntheticTy<'env, T> {
+unsafe impl<'env, T: SyntheticTyType> JavaConversion<'env> for SyntheticTy<T> {
     fn to_java(&self, _: JniEnv<'env>) -> Self::JavaType {
-        self.0.into_inner()
+        self.0
     }
     fn to_java_value(&self, _: JniEnv<'env>) -> JValue<'env> {
-        JValue::Object(self.0)
+        JValue::Object(JObject::from(self.0))
     }
     unsafe fn from_java_ref<R>(
         _: Self::JavaType,
@@ -72,17 +74,19 @@ impl<'env, T: JavaClass<'env>, W: SyntheticTyType> ConstructorReturnTy<'env, W> 
 impl<'env, T: JavaClass<'env>, W: SyntheticTyType, P: JavaConversion<'env>>
     ConstructorReturnTy<'env, W> for (T, P)
 {
-    type ReturnType = SyntheticTy<'env, W>;
+    type ReturnType = SyntheticTy<W>;
     const RET_TY: &'static str = constcat_generic!("L", W::CLASS_NAME, ";");
     const SUPER_CTOR_SIGNATURE: &'static str = constcat_generic!("(", P::JNI_TYPE, ")V");
     const HELPER_CTOR_SIGNATURE: &'static str = constcat_generic!("(I", P::JNI_TYPE, ")V");
     fn ctor_new(self, param_class: &str, env: JniEnv<'env>) -> Result<Self::ReturnType> {
         let id = env.get_id_manager::<T>().allocate(RwLock::new(self.0))?;
-        Ok(SyntheticTy::new(env.new_object(
-            param_class,
-            <Self as ConstructorReturnTy<'env, W>>::HELPER_CTOR_SIGNATURE,
-            &[id.to_java_value(env), P::to_java_value(&self.1, env)],
-        )?))
+        Ok(unsafe {
+            SyntheticTy::new(env.new_object(
+                param_class,
+                <Self as ConstructorReturnTy<'env, W>>::HELPER_CTOR_SIGNATURE,
+                &[id.to_java_value(env), P::to_java_value(&self.1, env)],
+            )?)
+        })
     }
 }
 macro_rules! generate_tuples {
@@ -90,7 +94,7 @@ macro_rules! generate_tuples {
         impl<'env, T: JavaClass<'env>, W: SyntheticTyType, $($ty: JavaConversion<'env>,)*>
             ConstructorReturnTy<'env, W> for (T, ($($ty,)*))
         {
-            type ReturnType = SyntheticTy<'env, W>;
+            type ReturnType = SyntheticTy<W>;
             const RET_TY: &'static str = constcat_generic!("L", W::CLASS_NAME, ";");
             const SUPER_CTOR_SIGNATURE: &'static str =
                 constcat_generic!("(", $($ty::JNI_TYPE,)* ")V");
@@ -98,11 +102,13 @@ macro_rules! generate_tuples {
                 constcat_generic!("(I", $($ty::JNI_TYPE,)* ")V");
             fn ctor_new(self, param_class: &str, env: JniEnv<'env>) -> Result<Self::ReturnType> {
                 let id = env.get_id_manager::<T>().allocate(RwLock::new(self.0))?;
-                Ok(SyntheticTy::new(env.new_object(
-                    param_class,
-                    <Self as ConstructorReturnTy<'env, W>>::HELPER_CTOR_SIGNATURE,
-                    &[id.to_java_value(env), $($ty::to_java_value(&(self.1).$id, env),)*],
-                )?))
+                Ok(unsafe {
+                    SyntheticTy::new(env.new_object(
+                        param_class,
+                        <Self as ConstructorReturnTy<'env, W>>::HELPER_CTOR_SIGNATURE,
+                        &[id.to_java_value(env), $($ty::to_java_value(&(self.1).$id, env),)*],
+                    )?)
+                })
             }
         }
     }
